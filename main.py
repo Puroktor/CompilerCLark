@@ -4,12 +4,19 @@ import mel_parser
 
 def main():
     prog = '''
-        void myFunc(int a, boolean b) {
-            int i = 2.3;
-        
+        int i = 0;
+        int b = 0;
+        void myFunc(int[] a, boolean b) {
+            do 
+            {
+            } while(i > 0 && g);
         }
-        int test() 
+        
+        int i= 1+1;
+         
+        delegate<:void> test() 
         {
+            delegate<int[], boolean : void> delegate = func();
         }
     '''
     prog = mel_parser.parse(prog)

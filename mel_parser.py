@@ -30,8 +30,11 @@ parser = Lark('''
     char: ESCAPED_CHAR  -> literal
     str: ESCAPED_STRING  -> literal
     bool: (TRUE|FALSE)  -> literal
-    type: INT | CHAR | STRING | BOOLEAN | DOUBLE
+    simple_type: INT | CHAR | STRING | BOOLEAN | DOUBLE
+    array_type: simple_type "[" "]"
+    type: simple_type | array_type | delegate
     ident: CNAME
+    ?complex_ident: ident | ident"[" expr "]"
 
     ADD:     "+"
     SUB:     "-"
@@ -56,6 +59,7 @@ parser = Lark('''
     ?delegate: "delegate" "<" type_list ":" func_return_type ">"
     
     ?group: num | char| str | bool
+        | complex_ident
         | call
         | "(" expr ")"
 
@@ -85,13 +89,12 @@ parser = Lark('''
         
     ?var_array_decl_inner: ident | ident "=" expr_list  -> assign
     
-    ?var_delegate_decl_inner: ident | ident "=" ident  -> assign
+    ?vars_decl: (simple_type |delegate) var_decl_inner ( "," var_decl_inner )* 
+        | type var_array_decl_inner ( "," var_array_decl_inner )*
     
-    ?vars_decl: type var_decl_inner ( "," var_decl_inner )* 
-        | type "[]" var_array_decl_inner ( "," var_array_decl_inner )*
-        | delegate var_delegate_decl_inner ( "," var_delegate_decl_inner )*
+    ?vars_decl_list: (vars_decl ";")* 
 
-    ?simple_stmt: ident "=" expr  -> assign
+    ?simple_stmt: complex_ident "=" expr  -> assign
         | call
 
     ?for_stmt_list: vars_decl
@@ -114,12 +117,10 @@ parser = Lark('''
     ?func_var: type ident
     ?func_vars_list: (func_var ("," func_var)*)?
     
-    func_return_type: INT | CHAR | STRING | BOOLEAN | DOUBLE | VOID    
+    func_return_type: type | VOID   
     func: func_return_type ident "(" func_vars_list ")" "{" stmt_list "}"
     
-    func_list: func*
-    
-    ?prog: func_list
+    ?prog: (func | vars_decl_list)*
 
     ?start: prog
 ''', start='start')  # , parser='lalr')
