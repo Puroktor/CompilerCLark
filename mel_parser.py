@@ -21,9 +21,15 @@ parser = Lark('''
     BOOLEAN:    "boolean"
     DOUBLE:     "double"
     VOID:       "void"
+    
+    TRUE:       "True"
+    FALSE:      "False"
+    ESCAPED_CHAR: "\'" /./ "\'"
 
     num: NUMBER  -> literal
+    char: ESCAPED_CHAR  -> literal
     str: ESCAPED_STRING  -> literal
+    bool: (TRUE|FALSE)  -> literal
     type: INT | CHAR | STRING | BOOLEAN | DOUBLE
     ident: CNAME
 
@@ -46,10 +52,10 @@ parser = Lark('''
     call: ident "(" ( expr ( "," expr )* )? ")"
     
     type_list: (type ("," type)*)?
+    
     ?delegate: "delegate" "<" type_list ":" func_return_type ">"
     
-    ?group: num | str
-        | ident
+    ?group: num | char| str | bool
         | call
         | "(" expr ")"
 
@@ -105,11 +111,11 @@ parser = Lark('''
 
     stmt_list: ( stmt ";"* )*
     
-    ?var_sign: type ident
-    ?var_sign_list: (var_sign ("," var_sign)*)?
+    ?func_var: type ident
+    ?func_vars_list: (func_var ("," func_var)*)?
     
     func_return_type: INT | CHAR | STRING | BOOLEAN | DOUBLE | VOID    
-    func: func_return_type ident "(" var_sign_list ")" "{" stmt_list "}"
+    func: func_return_type ident "(" func_vars_list ")" "{" stmt_list "}"
     
     func_list: func*
     

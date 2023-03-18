@@ -61,7 +61,7 @@ class LiteralNode(ExprNode):
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.literal = literal
-        self.value = eval(literal)
+        self.value = eval(literal.replace('\'', '\"'))
 
     def __str__(self) -> str:
         return '{0} ({1})'.format(self.literal, type(self.value).__name__)
@@ -86,7 +86,7 @@ class VarType(Enum):
     VOID = 'void'
 
 
-class VarSignNode(ExprNode):
+class FuncVarNode(ExprNode):
     def __init__(self, type: VarType, ident: IdentNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
@@ -101,18 +101,18 @@ class VarSignNode(ExprNode):
         return 'var-sign'
 
 
-class VarSignListNode(ExprNode):
-    def __init__(self, *signs: VarSignNode,
+class FuncVarsListNode(ExprNode):
+    def __init__(self, *vars: FuncVarNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
-        self.signs = signs
+        self.vars = vars
 
     @property
-    def childs(self) -> Tuple[VarSignNode, ...]:
-        return self.signs
+    def childs(self) -> Tuple[FuncVarNode, ...]:
+        return self.vars
 
     def __str__(self) -> str:
-        return 'vars'
+        return 'func-vars'
 
 
 class TypeNode(ExprNode):
@@ -307,7 +307,7 @@ class StmtListNode(StmtNode):
 
 
 class FuncSignNode(ExprNode):
-    def __init__(self, return_type: TypeNode, name: IdentNode, *var_sign: VarSignNode,
+    def __init__(self, return_type: TypeNode, name: IdentNode, *var_sign: FuncVarsListNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.return_type = return_type
@@ -315,7 +315,7 @@ class FuncSignNode(ExprNode):
         self.var_sign = var_sign
 
     @property
-    def childs(self) -> Tuple[TypeNode, IdentNode, Optional[VarSignNode]]:
+    def childs(self) -> Tuple[TypeNode, IdentNode, Optional[FuncVarsListNode]]:
         return (self.return_type, self.name) + ((self.var_sign,) if self.var_sign else tuple())
 
     def __str__(self) -> str:
@@ -323,18 +323,18 @@ class FuncSignNode(ExprNode):
 
 
 class FuncNode(StmtNode):
-    def __init__(self, return_type: FuncReturnTypeNode, name: IdentNode, sign_list: VarSignListNode,
+    def __init__(self, return_type: FuncReturnTypeNode, name: IdentNode, func_vars: FuncVarsListNode,
                  stmt_list: StmtListNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.return_type = return_type
         self.name = name
-        self.sign_list = sign_list
+        self.func_vars = func_vars
         self.stmt_list = stmt_list
 
     @property
-    def childs(self) -> Tuple[FuncReturnTypeNode, IdentNode, VarSignListNode, StmtListNode]:
-        return self.return_type, self.name, self.sign_list, self.stmt_list
+    def childs(self) -> Tuple[TypeNode, IdentNode, Optional[FuncVarsListNode], StmtListNode]:
+        return (self.return_type, self.name) + ((self.func_vars,) if self.func_vars else tuple()) + (self.stmt_list, )
 
     def __str__(self) -> str:
         return 'func'
