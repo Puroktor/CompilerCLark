@@ -110,6 +110,7 @@ parser = Lark('''
         | "for" "(" for_stmt_list ";" for_cond ";" for_stmt_list ")" for_body  -> for
         | "while" "(" expr ")" stmt -> while
         | "do" stmt "while" "(" expr ")" -> do_while
+        | "return" expr -> return
         | "{" stmt_list "}"
 
     stmt_list: ( stmt ";"* )*

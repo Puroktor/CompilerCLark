@@ -1,0 +1,14 @@
+int i = 0;
+int b = 0;
+void myFunc(int[] a, boolean b) {
+    do
+    {
+    } while(i > 0 && g);
+}
+
+int i= 1+1;
+
+delegate<:void> test()
+{
+    delegate<int[], boolean : void> delegate = func();
+}

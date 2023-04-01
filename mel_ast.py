@@ -340,6 +340,15 @@ class DoWhileNode(StmtNode):
         return 'do-while'
 
 
+class ReturnNode(StmtNode):
+    def __init__(self, expr: ExprNode, row: Optional[int] = None, line: Optional[int] = None, **props):
+        super().__init__(row=row, line=line, **props)
+        self.expr = expr
+
+    def __str__(self) -> str:
+        return 'return {0}'.format(str(self.expr))
+
+
 class StmtListNode(StmtNode):
     def __init__(self, *exprs: StmtNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
