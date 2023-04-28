@@ -9,6 +9,6 @@ void main() {
 int test()
 {
     {
-        return "12";
+        return True;
     }
 }

@@ -1,15 +1,23 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Tuple, Optional, Union
-from enum import Enum
+
+from lark_base import VarType, BinOp
+from semantic_base import TypeDesc, IdentDesc, SemanticException, IdentScope
 
 
 class AstNode(ABC):
+    init_action: Callable[['AstNode'], None] = None
+
     def __init__(self, row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__()
         self.row = row
         self.line = line
         for k, v in props.items():
             setattr(self, k, v)
+        if AstNode.init_action is not None:
+            AstNode.init_action(self)
+        self.node_type: Optional[TypeDesc] = None
+        self.node_ident: Optional[IdentDesc] = None
 
     @property
     def childs(self) -> Tuple['AstNode', ...]:
@@ -18,6 +26,14 @@ class AstNode(ABC):
     @abstractmethod
     def __str__(self) -> str:
         pass
+
+    def to_str_full(self):
+        r = ''
+        if self.node_ident:
+            r = str(self.node_ident)
+        elif self.node_type:
+            r = str(self.node_type)
+        return str(self) + (' : ' + r if r else '')
 
     @property
     def tree(self) -> [str, ...]:
@@ -29,6 +45,12 @@ class AstNode(ABC):
                 ch0, ch = '└', ' '
             res.extend(((ch0 if j == 0 else ch) + ' ' + s for j, s in enumerate(child.tree)))
         return res
+
+    def semantic_error(self, message: str):
+        raise SemanticException(message, self.row, self.line)
+
+    def semantic_check(self, checker, scope: IdentScope) -> None:
+        checker.semantic_check(self, scope)
 
     def visit(self, func: Callable[['AstNode'], None]) -> None:
         func(self)
@@ -77,59 +99,22 @@ class IdentNode(ExprNode):
         return str(self.name)
 
 
-class VarType(Enum):
-    INT = 'int'
-    CHAR = 'char'
-    STRING = 'string'
-    BOOLEAN = 'boolean'
-    DOUBLE = 'double'
-    VOID = 'void'
-
-
-class FuncVarNode(ExprNode):
-    def __init__(self, type: VarType, ident: IdentNode,
-                 row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
-        self.type = type
-        self.ident = ident
-
-    @property
-    def childs(self) -> Tuple[VarType, IdentNode]:
-        return self.type, self.ident
-
-    def __str__(self) -> str:
-        return 'var-sign'
-
-
-class FuncVarsListNode(ExprNode):
-    def __init__(self, *vars: FuncVarNode,
-                 row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
-        self.vars = vars
-
-    @property
-    def childs(self) -> Tuple[FuncVarNode, ...]:
-        return self.vars
-
-    def __str__(self) -> str:
-        return 'func-vars'
-
-
 class SimpleTypeNode(ExprNode):
     def __init__(self, type: VarType,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.type = type
+        self.array = False
 
     def __str__(self) -> str:
         return str(self.type)
 
 
-class ArrayTypeNode(ExprNode):
+class ArrayTypeNode(SimpleTypeNode):
     def __init__(self, type: VarType,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
-        self.type = type
+        super().__init__(type, row=row, line=line, **props)
+        self.array = True
 
     def __str__(self) -> str:
         return '{0}[]'.format(str(self.type))
@@ -162,38 +147,69 @@ class TypeNode(ExprNode):
 
 class TypeListNode(ExprNode):
     def __init__(self, *types: TypeNode,
-                 row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
+                 row: Optional[int] = None, col: Optional[int] = None, **props) -> None:
+        super().__init__(row=row, col=col, **props)
         self.types = types
 
     @property
-    def childs(self) -> Tuple[TypeNode, ...]:
+    def childs(self) -> Tuple[TypeNode]:
         return self.types
 
     def __str__(self) -> str:
-        return 'type-list'
+        return 'types'
+
+
+class TypeConvertNode(ExprNode):
+    """Класс для представления в AST-дереве операций конвертации типов данных
+       (в языке программирования может быть как expression, так и statement)
+    """
+
+    def __init__(self, expr: ExprNode, type_: TypeDesc,
+                 row: Optional[int] = None, col: Optional[int] = None, **props) -> None:
+        super().__init__(row=row, col=col, **props)
+        self.expr = expr
+        self.type = type_
+        self.node_type = type_
+
+    def __str__(self) -> str:
+        return 'convert {0}'.format(str(self.type))
+
+    @property
+    def childs(self) -> ExprNode:
+        return self.expr
 
 
 class FuncReturnTypeNode(TypeNode):
     pass
 
 
-class BinOp(Enum):
-    ADD = '+'
-    SUB = '-'
-    MUL = '*'
-    DIV = '/'
-    MOD = '%'
-    GE = '>='
-    LE = '<='
-    NEQUALS = '<>'
-    EQUALS = '=='
-    GT = '>'
-    LT = '<'
-    BIT_AND = '&'
-    BIT_OR = '|'
-    LOGICAL_AND = '&&'
-    LOGICAL_OR = '||'
+class FuncParamNode(ExprNode):
+    def __init__(self, type: TypeNode, ident: IdentNode,
+                 row: Optional[int] = None, line: Optional[int] = None, **props):
+        super().__init__(row=row, line=line, **props)
+        self.type = type
+        self.ident = ident
+
+    @property
+    def childs(self) -> Tuple[TypeNode, IdentNode]:
+        return self.type, self.ident
+
+    def __str__(self) -> str:
+        return 'func-param'
+
+
+class FuncParamsNode(ExprNode):
+    def __init__(self, params: Tuple[FuncParamNode] = (),
+                 row: Optional[int] = None, line: Optional[int] = None, **props):
+        super().__init__(row=row, line=line, **props)
+        self.params = params
+
+    @property
+    def childs(self) -> Tuple[FuncParamNode]:
+        return self.params
+
+    def __str__(self) -> str:
+        return 'params'
 
 
 class BinOpNode(ExprNode):
@@ -217,15 +233,15 @@ class StmtNode(ExprNode):
 
 
 class VarsDeclNode(StmtNode):
-    def __init__(self, vars_type: TypeNode, *vars_list: Tuple[AstNode, ...],
+    def __init__(self, type: TypeNode, *vars: Tuple[AstNode, ...],
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
-        self.vars_type = vars_type
-        self.vars_list = vars_list
+        self.type = type
+        self.vars = vars
 
     @property
     def childs(self) -> Tuple[ExprNode, ...]:
-        return (self.vars_type,) + self.vars_list
+        return (self.type,) + self.vars
 
     def __str__(self) -> str:
         return 'var'
@@ -276,7 +292,7 @@ class AssignNode(StmtNode):
         return '='
 
 
-class ComplexIdentNode(StmtNode):
+class ArrayElementNode(StmtNode):
     def __init__(self, var: IdentNode, index: ExprNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
@@ -312,10 +328,10 @@ class ForNode(StmtNode):
                  step: Union[StmtNode, None], body: Union[StmtNode, None] = None,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
-        self.init = init if init else _empty
-        self.cond = cond if cond else _empty
-        self.step = step if step else _empty
-        self.body = body if body else _empty
+        self.init = init if init else EMPTY_STMT
+        self.cond = cond if cond else EMPTY_STMT
+        self.step = step if step else EMPTY_STMT
+        self.body = body if body else EMPTY_STMT
 
     @property
     def childs(self) -> Tuple[AstNode, ...]:
@@ -326,11 +342,11 @@ class ForNode(StmtNode):
 
 
 class WhileNode(StmtNode):
-    def __init__(self, cond: ExprNode, stmt: StmtNode,
+    def __init__(self, cond: ExprNode, body: StmtNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.cond = cond
-        self.stmt = stmt
+        self.stmt = body if body else EMPTY_STMT
 
     @property
     def childs(self) -> Tuple[ExprNode, StmtNode]:
@@ -338,21 +354,6 @@ class WhileNode(StmtNode):
 
     def __str__(self) -> str:
         return 'while'
-
-
-class DoWhileNode(StmtNode):
-    def __init__(self, stmt: StmtNode, cond: ExprNode,
-                 row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
-        self.stmt = stmt
-        self.cond = cond
-
-    @property
-    def childs(self) -> Tuple[ExprNode, StmtNode]:
-        return self.cond, self.stmt
-
-    def __str__(self) -> str:
-        return 'do-while'
 
 
 class ReturnNode(StmtNode):
@@ -365,48 +366,36 @@ class ReturnNode(StmtNode):
 
 
 class StmtListNode(StmtNode):
-    def __init__(self, *exprs: StmtNode,
+    def __init__(self, *stmts: StmtNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
-        self.exprs = exprs
+        self.stmts = stmts
+        self.program = False
 
     @property
     def childs(self) -> Tuple[StmtNode, ...]:
-        return self.exprs
+        return self.stmts
 
     def __str__(self) -> str:
         return '...'
 
 
 class FuncNode(StmtNode):
-    def __init__(self, return_type: FuncReturnTypeNode, name: IdentNode, func_vars: FuncVarsListNode,
-                 stmt_list: StmtListNode,
+    def __init__(self, return_type: FuncReturnTypeNode, name: IdentNode,
+                 params: FuncParamsNode, body: StmtListNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.return_type = return_type
         self.name = name
-        self.func_vars = func_vars
-        self.stmt_list = stmt_list
+        self.params = params
+        self.body = body
 
     @property
-    def childs(self) -> Tuple[Optional[FuncVarsListNode], StmtListNode]:
-        return ((self.func_vars,) if self.func_vars else tuple()) + (self.stmt_list,)
+    def childs(self) -> Tuple[ExprNode, ...]:
+        return ((self.params,) if self.params else tuple()) + (self.body,)
 
     def __str__(self) -> str:
         return '({0}) func {1}'.format(self.return_type, self.name)
-
-
-class ProgNode(StmtNode):
-    def __init__(self, *funcs_and_vars: StmtNode, row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
-        self.funcs_and_vars = funcs_and_vars
-
-    @property
-    def childs(self) -> Tuple[StmtNode, ...]:
-        return self.funcs_and_vars
-
-    def __str__(self) -> str:
-        return 'prog'
 
 
 class DelegateNode(StmtNode):
@@ -424,4 +413,5 @@ class DelegateNode(StmtNode):
         return 'delegate'
 
 
-_empty = StmtListNode()
+EMPTY_STMT = StmtListNode()
+EMPTY_IDENT = IdentDesc('', TypeDesc.VOID)

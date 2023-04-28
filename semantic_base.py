@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional, Tuple
 from enum import Enum
 
-from lark_ast import BinOp, VarType
+from lark_base import VarType, BinOp
 
-VOID, INT, DOUBLE, BOOL, STR = VarType.VOID, VarType.INT, VarType.DOUBLE, VarType.BOOLEAN, VarType.STRING
+VOID, INT, DOUBLE, BOOL, STR, CHAR = VarType.VOID, VarType.INT, VarType.DOUBLE, VarType.BOOLEAN, VarType.STRING, VarType.CHAR
 
 
 class ComplexType(Enum):
@@ -21,6 +21,7 @@ class TypeDesc:
     DOUBLE: 'TypeDesc'
     BOOL: 'TypeDesc'
     STR: 'TypeDesc'
+    CHAR: 'TypeDesc'
 
     def __init__(self, var_type_: Optional[VarType] = None, complex_type: ComplexType = None,
                  return_type: Optional['TypeDesc'] = None, params: Optional[Tuple['TypeDesc']] = None) -> None:
@@ -59,6 +60,14 @@ class TypeDesc:
             return TypeDesc.from_var_type(var_type_)
         except:
             raise SemanticException('Неизвестный тип {}'.format(str_decl))
+
+    @property
+    def is_simple(self) -> bool:
+        return self.complex_type is None
+
+    @property
+    def func(self) -> bool:
+        return self.complex_type == ComplexType.FUNCTION
 
     def __str__(self) -> str:
         if not self.complex_type:
