@@ -26,7 +26,7 @@ char: ESCAPED_CHAR  -> literal
 str: ESCAPED_STRING  -> literal
 bool: (TRUE|FALSE)  -> literal
 
-simple_type: INT | CHAR | STRING | BOOLEAN | DOUBLE
+simple_type: INT | CHAR | STRING | BOOLEAN | DOUBLE | VOID
 array_type: simple_type "[" "]"
 type: simple_type | array_type | delegate
 
@@ -50,7 +50,7 @@ ident: CNAME
 call: ident "(" ( expr ( "," expr )* )? ")"
 
 type_list: (type ("," type)*)?
-?delegate: "delegate" "<" type_list ":" func_return_type ">"
+?delegate: "delegate" "<" type_list ":" type ">"
 
 array_element: simple_type "[" expr "]"
 
@@ -105,8 +105,7 @@ array_element: simple_type "[" expr "]"
     | ";"  -> stmt_list
 
 ?func_param: type ident
-?func_params: (func_param ("," func_param)*)?
-?func_return_type: type | VOID
+func_params: (func_param ("," func_param)*)?
 
 ?stmt: ";" -> stmt_list
     | vars_decl ";"
@@ -114,7 +113,7 @@ array_element: simple_type "[" expr "]"
     | "if" "(" expr ")" stmt ("else" stmt)?  -> if
     | "for" "(" for_stmt_list ";" for_cond ";" for_stmt_list ")" loop_body  -> for
     | "while" "(" expr ")" loop_body -> while
-    | func_return_type ident "(" func_params ")" "{" stmt_list "}" -> func
+    | type ident "(" func_params ")" "{" stmt_list "}" -> func
     | "return" expr -> return
     | "{" stmt_list "}"
 

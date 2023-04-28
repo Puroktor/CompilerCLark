@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Tuple, Optional, Union
 
-from lark_base import VarType, BinOp
+from lark_base import SimpleType, BinOp, VarType
 from semantic_base import TypeDesc, IdentDesc, SemanticException, IdentScope
 
 
@@ -99,29 +99,32 @@ class IdentNode(ExprNode):
         return str(self.name)
 
 
-class SimpleTypeNode(ExprNode):
-    def __init__(self, type: VarType,
+class TypeDescNode(ExprNode):
+    def __init__(self, type: SimpleType, complex_type: VarType = VarType.SIMPLE,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
         self.type = type
-        self.array = False
+        self.complex_type = complex_type
 
     def __str__(self) -> str:
         return str(self.type)
 
 
-class ArrayTypeNode(SimpleTypeNode):
-    def __init__(self, type: VarType,
+class SimpleTypeNode(TypeDescNode):
+    pass
+
+
+class ArrayTypeNode(TypeDescNode):
+    def __init__(self, type: SimpleType,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(type, row=row, line=line, **props)
-        self.array = True
+        super().__init__(type, VarType.ARRAY, row=row, line=line, **props)
 
     def __str__(self) -> str:
         return '{0}[]'.format(str(self.type))
 
 
 class ArrayDeclNode(ExprNode):
-    def __init__(self, type: VarType,
+    def __init__(self, type: SimpleType,
                  size: ExprNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
@@ -137,12 +140,12 @@ class ArrayDeclNode(ExprNode):
 
 
 class TypeNode(ExprNode):
-    def __init__(self, type: ExprNode, row: Optional[int] = None, line: Optional[int] = None, **props):
+    def __init__(self, type_desc: TypeDescNode, row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
-        self.type = type
+        self.type_desc = type_desc
 
     def __str__(self) -> str:
-        return str(self.type)
+        return str(self.type_desc)
 
 
 class TypeListNode(ExprNode):
@@ -177,10 +180,6 @@ class TypeConvertNode(ExprNode):
     @property
     def childs(self) -> ExprNode:
         return self.expr
-
-
-class FuncReturnTypeNode(TypeNode):
-    pass
 
 
 class FuncParamNode(ExprNode):
@@ -381,7 +380,7 @@ class StmtListNode(StmtNode):
 
 
 class FuncNode(StmtNode):
-    def __init__(self, return_type: FuncReturnTypeNode, name: IdentNode,
+    def __init__(self, return_type: TypeNode, name: IdentNode,
                  params: FuncParamsNode, body: StmtListNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(row=row, line=line, **props)
@@ -398,15 +397,15 @@ class FuncNode(StmtNode):
         return '({0}) func {1}'.format(self.return_type, self.name)
 
 
-class DelegateNode(StmtNode):
-    def __init__(self, type_list: TypeListNode, return_type: FuncReturnTypeNode,
+class DelegateNode(TypeDescNode):
+    def __init__(self, type_list: TypeListNode, return_type: TypeNode,
                  row: Optional[int] = None, line: Optional[int] = None, **props):
-        super().__init__(row=row, line=line, **props)
+        super().__init__(None, VarType.DELEGATE, row=row, line=line, **props)
         self.type_list = type_list
         self.return_type = return_type
 
     @property
-    def childs(self) -> Tuple[TypeListNode, FuncReturnTypeNode]:
+    def childs(self) -> Tuple[TypeListNode, TypeNode]:
         return self.type_list, self.return_type
 
     def __str__(self) -> str:

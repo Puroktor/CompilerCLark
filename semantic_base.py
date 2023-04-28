@@ -1,15 +1,9 @@
 from typing import Any, Dict, Optional, Tuple
 from enum import Enum
 
-from lark_base import VarType, BinOp
+from lark_base import SimpleType, BinOp, VarType
 
-VOID, INT, DOUBLE, BOOL, STR, CHAR = VarType.VOID, VarType.INT, VarType.DOUBLE, VarType.BOOLEAN, VarType.STRING, VarType.CHAR
-
-
-class ComplexType(Enum):
-    ARRAY = 1,
-    FUNCTION = 2,
-    DELEGATE = 3
+VOID, INT, DOUBLE, BOOL, STR = SimpleType.VOID, SimpleType.INT, SimpleType.DOUBLE, SimpleType.BOOLEAN, SimpleType.STRING
 
 
 class TypeDesc:
@@ -21,24 +15,23 @@ class TypeDesc:
     DOUBLE: 'TypeDesc'
     BOOL: 'TypeDesc'
     STR: 'TypeDesc'
-    CHAR: 'TypeDesc'
 
-    def __init__(self, var_type_: Optional[VarType] = None, complex_type: ComplexType = None,
+    def __init__(self, simple_type_: Optional[SimpleType] = None, var_type: VarType = VarType.SIMPLE,
                  return_type: Optional['TypeDesc'] = None, params: Optional[Tuple['TypeDesc']] = None) -> None:
         # Примитивный тип данных
-        self.var_type = var_type_
+        self.simple_type = simple_type_
 
-        self.complex_type = complex_type
+        self.var_type = var_type
 
         # Для функции или делегата
         self.return_type = return_type
         self.params = params
 
     def __eq__(self, other: 'TypeDesc'):
-        if self.complex_type != other.complex_type:
+        if self.var_type != other.var_type:
             return False
-        if not self.complex_type:
-            return self.var_type == other.var_type
+        if not self.var_type:
+            return self.simple_type == other.simple_type
         else:
             if self.return_type != other.return_type:
                 return False
@@ -50,30 +43,22 @@ class TypeDesc:
             return True
 
     @staticmethod
-    def from_var_type(var_type_: VarType) -> 'TypeDesc':
-        return getattr(TypeDesc, var_type_.name)
-
-    @staticmethod
-    def from_str(str_decl: str) -> 'TypeDesc':
-        try:
-            var_type_ = VarType(str_decl)
-            return TypeDesc.from_var_type(var_type_)
-        except:
-            raise SemanticException('Неизвестный тип {}'.format(str_decl))
+    def from_simple_type(simple_type_: SimpleType) -> 'TypeDesc':
+        return getattr(TypeDesc, simple_type_.name)
 
     @property
     def is_simple(self) -> bool:
-        return self.complex_type is None
+        return self.var_type == VarType.SIMPLE
 
     @property
     def func(self) -> bool:
-        return self.complex_type == ComplexType.FUNCTION
+        return self.var_type == VarType.FUNCTION
 
     def __str__(self) -> str:
-        if not self.complex_type:
-            return str(self.var_type)
-        elif self.complex_type == ComplexType.ARRAY:
-            return '{0}[]'.format(str(self.var_type))
+        if not self.var_type:
+            return str(self.simple_type)
+        elif self.var_type == VarType.ARRAY:
+            return '{0}[]'.format(str(self.simple_type))
         else:
             res = str(self.return_type)
             res += ' ('
@@ -85,8 +70,8 @@ class TypeDesc:
         return res
 
 
-for var_type in VarType:
-    setattr(TypeDesc, var_type.name, TypeDesc(var_type))
+for simple_type in SimpleType:
+    setattr(TypeDesc, simple_type.name, TypeDesc(simple_type))
 
 
 class ScopeType(Enum):
@@ -166,7 +151,7 @@ class IdentScope:
             if error:
                 raise SemanticException('Идентификатор {} уже объявлен'.format(ident.name))
 
-        if not ident.type.complex_type == ComplexType.FUNCTION:
+        if not ident.type.var_type == VarType.FUNCTION:
             if ident.scope == ScopeType.PARAM:
                 ident.index = func_scope.param_index
                 func_scope.param_index += 1
@@ -207,12 +192,12 @@ class SemanticException(Exception):
 
 
 def can_type_convert_to(from_type: TypeDesc, to_type: TypeDesc) -> bool:
-    if from_type.complex_type or to_type.complex_type:
-        if from_type.complex_type == ComplexType.ARRAY and to_type.complex_type == ComplexType.ARRAY:
+    if from_type.var_type or to_type.var_type:
+        if from_type.var_type == VarType.ARRAY and to_type.var_type == VarType.ARRAY:
             return True
         else:
             return False
-    return from_type.var_type in TYPE_CONVERTIBILITY and to_type.var_type in TYPE_CONVERTIBILITY[to_type.var_type]
+    return from_type.simple_type in TYPE_CONVERTIBILITY and to_type.simple_type in TYPE_CONVERTIBILITY[to_type.simple_type]
 
 
 TYPE_CONVERTIBILITY = {

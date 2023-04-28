@@ -1,9 +1,8 @@
 from enum import Enum
 
 
-class VarType(Enum):
+class SimpleType(Enum):
     INT = 'int'
-    CHAR = 'char'
     STRING = 'string'
     BOOLEAN = 'boolean'
     DOUBLE = 'double'
@@ -26,3 +25,10 @@ class BinOp(Enum):
     BIT_OR = '|'
     LOGICAL_AND = '&&'
     LOGICAL_OR = '||'
+
+
+class VarType(Enum):
+    SIMPLE = 0,
+    ARRAY = 1,
+    FUNCTION = 2,
+    DELEGATE = 3
