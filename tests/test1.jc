@@ -1,14 +1,22 @@
 int i = 0;
 int b = 0;
-void myFunc(int[] a, boolean b) {
+
+void main() {
+    myFunc();
+}
+
+void myFunc() {
+    char[5] arr;
     do
     {
     } while(i > 0 && g);
+    test(arr);
 }
 
-int i= 1+1;
+int z = 1 + 1;
 
-delegate<:void> test()
+int test(char[] arr)
 {
-    delegate<int[], boolean : void> delegate = func();
+    delegate<int[], boolean : void> delegate = func;
+    return 2.0;
 }

@@ -1,10 +1,14 @@
 boolean i = true;
 int b = 0;
 
-void main(int a) {
+void main() {
+    int[3] a = {1, 2, "asdsa"};
+    a[5] = 5;
 }
 
 int test()
 {
-    return "12";
+    {
+        return "12";
+    }
 }

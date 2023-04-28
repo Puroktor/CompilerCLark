@@ -1,6 +1,6 @@
 from lark import Lark, InlineTransformer
 from lark.lexer import Token
-from mel_ast import *
+from lark_ast import *
 
 parser = Lark('''
     %import common.NUMBER
@@ -32,6 +32,7 @@ parser = Lark('''
     bool: (TRUE|FALSE)  -> literal
     simple_type: INT | CHAR | STRING | BOOLEAN | DOUBLE
     array_type: simple_type "[" "]"
+    array_decl: simple_type "[" expr "]"
     type: simple_type | array_type | delegate
     ident: CNAME
     ?complex_ident: ident | ident"[" expr "]"
@@ -90,7 +91,7 @@ parser = Lark('''
     ?var_array_decl_inner: ident | ident "=" expr_list  -> assign
     
     ?vars_decl: (simple_type |delegate) var_decl_inner ( "," var_decl_inner )* 
-        | type var_array_decl_inner ( "," var_array_decl_inner )*
+        | array_decl var_array_decl_inner ( "," var_array_decl_inner )*
     
     ?vars_decl_list: (vars_decl ";")* 
 

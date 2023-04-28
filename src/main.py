@@ -1,11 +1,11 @@
 import os
-import mel_parser
+import lark_parser
 
 
 def main():
-    with open("tests/test2.jc", "r") as f:
+    with open("./tests/test1.jc", "r") as f:
         prog = f.read()
-        prog = mel_parser.parse(prog)
+        prog = lark_parser.parse(prog)
         print(*prog.tree, sep=os.linesep)
 
 

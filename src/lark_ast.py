@@ -132,7 +132,23 @@ class ArrayTypeNode(ExprNode):
         self.type = type
 
     def __str__(self) -> str:
-        return 'array {0}'.format(str(self.type))
+        return '{0}[]'.format(str(self.type))
+
+
+class ArrayDeclNode(ExprNode):
+    def __init__(self, type: VarType,
+                 size: ExprNode,
+                 row: Optional[int] = None, line: Optional[int] = None, **props):
+        super().__init__(row=row, line=line, **props)
+        self.type = type
+        self.size = size
+
+    @property
+    def childs(self) -> Tuple[ExprNode, ...]:
+        return self.size,
+
+    def __str__(self) -> str:
+        return '{0}[]'.format(str(self.type))
 
 
 class TypeNode(ExprNode):
@@ -209,7 +225,6 @@ class VarsDeclNode(StmtNode):
 
     @property
     def childs(self) -> Tuple[ExprNode, ...]:
-        # return self.vars_type, (*self.vars_list)
         return (self.vars_type,) + self.vars_list
 
     def __str__(self) -> str:
