@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional, Tuple
 from enum import Enum
 
-from lark_base import SimpleType, BinOp, VarType
+from lark_base import BaseType, BinOp
 
-VOID, INT, DOUBLE, BOOL, STR = SimpleType.VOID, SimpleType.INT, SimpleType.DOUBLE, SimpleType.BOOLEAN, SimpleType.STRING
+VOID, INT, DOUBLE, BOOLEAN, STR = BaseType.VOID, BaseType.INT, BaseType.DOUBLE, BaseType.BOOLEAN, BaseType.STR
 
 
 class TypeDesc:
@@ -13,25 +13,39 @@ class TypeDesc:
     VOID: 'TypeDesc'
     INT: 'TypeDesc'
     DOUBLE: 'TypeDesc'
-    BOOL: 'TypeDesc'
+    BOOLEAN: 'TypeDesc'
     STR: 'TypeDesc'
 
-    def __init__(self, simple_type_: Optional[SimpleType] = None, var_type: VarType = VarType.SIMPLE,
-                 return_type: Optional['TypeDesc'] = None, params: Optional[Tuple['TypeDesc']] = None) -> None:
-        # Примитивный тип данных
-        self.simple_type = simple_type_
+    INT_ARRAY: 'TypeDesc'
+    FLOAT_ARRAY: 'TypeDesc'
+    BOOLEAN_ARRAY: 'TypeDesc'
+    STR_ARRAY: 'TypeDesc'
 
-        self.var_type = var_type
-
-        # Для функции или делегата
+    def __init__(self, base_type_: Optional[BaseType] = None,
+                 return_type: Optional['TypeDesc'] = None, params: Optional[Tuple['TypeDesc']] = None,
+                 array: bool = False) -> None:
+        self.base_type = base_type_
         self.return_type = return_type
         self.params = params
+        self.array = array
+
+    @property
+    def func(self) -> bool:
+        return self.return_type is not None
+
+    @property
+    def is_arr(self) -> bool:
+        return self.array
+
+    @property
+    def is_simple(self) -> bool:
+        return not self.func and not self.array
 
     def __eq__(self, other: 'TypeDesc'):
-        if self.var_type != other.var_type:
+        if self.func != other.func:
             return False
-        if not self.var_type:
-            return self.simple_type == other.simple_type
+        if not self.func:
+            return self.array == other.array and self.base_type == other.base_type
         else:
             if self.return_type != other.return_type:
                 return False
@@ -43,22 +57,27 @@ class TypeDesc:
             return True
 
     @staticmethod
-    def from_simple_type(simple_type_: SimpleType) -> 'TypeDesc':
-        return getattr(TypeDesc, simple_type_.name)
+    def from_base_type(base_type_: BaseType) -> 'TypeDesc':
+        return getattr(TypeDesc, base_type_.name)
 
-    @property
-    def is_simple(self) -> bool:
-        return self.var_type == VarType.SIMPLE
+    @staticmethod
+    def from_array_base_type(arr_type: BaseType) -> 'TypeDesc':
+        return getattr(TypeDesc, f"{arr_type.name}_ARRAY")
 
-    @property
-    def func(self) -> bool:
-        return self.var_type == VarType.FUNCTION
+    @staticmethod
+    def from_str(str_decl: str, array: bool = False) -> 'TypeDesc':
+        try:
+            base_type_ = BaseType(str_decl)
+            if array:
+                return TypeDesc.from_array_base_type(base_type_)
+            else:
+                return TypeDesc.from_base_type(base_type_)
+        except:
+            raise SemanticException('Неизвестный тип {}'.format(str_decl))
 
     def __str__(self) -> str:
-        if not self.var_type:
-            return str(self.simple_type)
-        elif self.var_type == VarType.ARRAY:
-            return '{0}[]'.format(str(self.simple_type))
+        if not self.func:
+            return str(self.base_type) + ('[]' if self.is_arr else '')
         else:
             res = str(self.return_type)
             res += ' ('
@@ -70,8 +89,11 @@ class TypeDesc:
         return res
 
 
-for simple_type in SimpleType:
-    setattr(TypeDesc, simple_type.name, TypeDesc(simple_type))
+for base_type in BaseType:
+    setattr(TypeDesc, base_type.name, TypeDesc(base_type))
+    tmp = TypeDesc(base_type)
+    tmp.array = True
+    setattr(TypeDesc, f"{base_type.name}_ARRAY", tmp)
 
 
 class ScopeType(Enum):
@@ -79,6 +101,7 @@ class ScopeType(Enum):
     """
 
     GLOBAL = 'global'
+    GLOBAL_LOCAL = 'global.local'  # переменные относятся к глобальной области, но описаны в скобках (теряем имена)
     PARAM = 'param'
     LOCAL = 'local'
 
@@ -87,8 +110,6 @@ class ScopeType(Enum):
 
 
 class IdentDesc:
-    """Класс для описания переменых
-    """
 
     def __init__(self, name: str, type_: TypeDesc, scope: ScopeType = ScopeType.GLOBAL, index: int = 0) -> None:
         self.name = name
@@ -99,6 +120,23 @@ class IdentDesc:
 
     def __str__(self) -> str:
         return '{}, {}, {}'.format(self.type, self.scope, 'built-in' if self.built_in else self.index)
+
+
+class ArrayDesc(IdentDesc):
+
+    def __init__(self, name: str, type_: TypeDesc, size: int, scope: ScopeType = ScopeType.GLOBAL,
+                 index: int = 0) -> None:
+        super().__init__(name, type_, scope, index)
+        self.size = size
+
+    def toIdentDesc(self):
+        name = str(self.type.base_type).replace("array ", "")
+        tp = self.type.from_str(name)
+        k = IdentDesc(self.name, tp, self.scope, self.index)
+        return k
+
+    def __str__(self) -> str:
+        return f'{self.type}[{self.size}], {self.scope}, {"built-in" if self.built_in else self.index}'
 
 
 class IdentScope:
@@ -135,7 +173,8 @@ class IdentScope:
         global_scope = self.curr_global
 
         if ident.scope != ScopeType.PARAM:
-            ident.scope = ScopeType.LOCAL if func_scope else ScopeType.GLOBAL
+            ident.scope = ScopeType.LOCAL if func_scope else \
+                ScopeType.GLOBAL if self == global_scope else ScopeType.GLOBAL_LOCAL
 
         old_ident = self.get_ident(ident.name)
         if old_ident:
@@ -144,14 +183,14 @@ class IdentScope:
                 if old_ident.scope == ScopeType.PARAM:
                     error = True
             elif ident.scope == ScopeType.LOCAL:
-                if old_ident.scope != ScopeType.GLOBAL:
+                if old_ident.scope not in (ScopeType.GLOBAL, ScopeType.GLOBAL_LOCAL):
                     error = True
             else:
                 error = True
             if error:
                 raise SemanticException('Идентификатор {} уже объявлен'.format(ident.name))
 
-        if not ident.type.var_type == VarType.FUNCTION:
+        if not ident.type.func:
             if ident.scope == ScopeType.PARAM:
                 ident.index = func_scope.param_index
                 func_scope.param_index += 1
@@ -179,31 +218,22 @@ class SemanticException(Exception):
     """
 
     def __init__(self, message, row: int = None, col: int = None, **kwargs: Any) -> None:
-        if row or col:
-            message += " ("
-            if row:
-                message += 'строка: {}'.format(row)
-                if col:
-                    message += ', '
-            if row:
-                message += 'позиция: {}'.format(col)
-            message += ")"
         self.message = message
-
-
-def can_type_convert_to(from_type: TypeDesc, to_type: TypeDesc) -> bool:
-    if from_type.var_type or to_type.var_type:
-        if from_type.var_type == VarType.ARRAY and to_type.var_type == VarType.ARRAY:
-            return True
-        else:
-            return False
-    return from_type.simple_type in TYPE_CONVERTIBILITY and to_type.simple_type in TYPE_CONVERTIBILITY[to_type.simple_type]
+        if row or col:
+            self.message += " ("
+            if row:
+                self.message += f'строка: {format(row)}'
+                if col:
+                    self.message += ', '
+            if row:
+                self.message += f'позиция: {format(col)}'
+            self.message += ")"
 
 
 TYPE_CONVERTIBILITY = {
-    INT: (DOUBLE, BOOL, STR),
+    INT: (DOUBLE, BOOLEAN, STR),
     DOUBLE: (STR,),
-    BOOL: (STR,)
+    BOOLEAN: (STR,)
 }
 
 BIN_OP_TYPE_COMPATIBILITY = {
@@ -230,47 +260,40 @@ BIN_OP_TYPE_COMPATIBILITY = {
     },
 
     BinOp.GT: {
-        (INT, INT): BOOL,
-        (DOUBLE, DOUBLE): BOOL,
-        (STR, STR): BOOL,
+        (INT, INT): BOOLEAN,
+        (DOUBLE, DOUBLE): BOOLEAN,
+        (STR, STR): BOOLEAN,
     },
     BinOp.LT: {
-        (INT, INT): BOOL,
-        (DOUBLE, DOUBLE): BOOL,
-        (STR, STR): BOOL,
+        (INT, INT): BOOLEAN,
+        (DOUBLE, DOUBLE): BOOLEAN,
+        (STR, STR): BOOLEAN,
     },
     BinOp.GE: {
-        (INT, INT): BOOL,
-        (DOUBLE, DOUBLE): BOOL,
-        (STR, STR): BOOL,
+        (INT, INT): BOOLEAN,
+        (DOUBLE, DOUBLE): BOOLEAN,
+        (STR, STR): BOOLEAN,
     },
     BinOp.LE: {
-        (INT, INT): BOOL,
-        (DOUBLE, DOUBLE): BOOL,
-        (STR, STR): BOOL,
+        (INT, INT): BOOLEAN,
+        (DOUBLE, DOUBLE): BOOLEAN,
+        (STR, STR): BOOLEAN,
     },
     BinOp.EQUALS: {
-        (INT, INT): BOOL,
-        (DOUBLE, DOUBLE): BOOL,
-        (STR, STR): BOOL,
+        (INT, INT): BOOLEAN,
+        (DOUBLE, DOUBLE): BOOLEAN,
+        (STR, STR): BOOLEAN,
     },
     BinOp.NEQUALS: {
-        (INT, INT): BOOL,
-        (DOUBLE, DOUBLE): BOOL,
-        (STR, STR): BOOL,
-    },
-
-    BinOp.BIT_AND: {
-        (INT, INT): INT
-    },
-    BinOp.BIT_OR: {
-        (INT, INT): INT
+        (INT, INT): BOOLEAN,
+        (DOUBLE, DOUBLE): BOOLEAN,
+        (STR, STR): BOOLEAN,
     },
 
     BinOp.LOGICAL_AND: {
-        (BOOL, BOOL): BOOL
+        (BOOLEAN, BOOLEAN): BOOLEAN
     },
     BinOp.LOGICAL_OR: {
-        (BOOL, BOOL): BOOL
+        (BOOLEAN, BOOLEAN): BOOLEAN
     },
 }

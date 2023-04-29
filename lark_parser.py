@@ -1,6 +1,12 @@
+import os
+
 from lark import Lark, InlineTransformer
 from lark.lexer import Token
 from lark_ast_nodes import *
+from lark_base import BinOp
+
+absolute_path = os.path.dirname(__file__)
+parser = Lark.open(os.path.join(absolute_path, "syntax.lark"), start='start', lexer='standard', propagate_positions=True)
 
 
 class ASTBuilder(InlineTransformer):
@@ -18,10 +24,10 @@ class ASTBuilder(InlineTransformer):
         else:
             def get_node(*args):
                 props = {}
+                if len(args) != 0:
+                    props = {'line': args[0].line, 'column': args[0].column}
                 if len(args) == 1 and isinstance(args[0], Token):
                     props['token'] = args[0]
-                    props['line'] = args[0].line
-                    props['column'] = args[0].column
                     args = [args[0].value]
                 cls = eval(''.join(x.capitalize() for x in item.split('_')) + 'Node')
                 return cls(*args, **props)
@@ -30,8 +36,6 @@ class ASTBuilder(InlineTransformer):
 
 
 def parse(prog: str) -> StmtListNode:
-    parser = Lark.open("./syntax.lark", start='start', lexer='standard', propagate_positions=True)
     prog = parser.parse(str(prog))
-    # print(prog.pretty('  '))
     prog = ASTBuilder().transform(prog)
     return prog

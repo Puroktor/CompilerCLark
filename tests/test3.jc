@@ -1,3 +1,0 @@
-void main() {
-    delegate<:void> deleg = main;
-}
