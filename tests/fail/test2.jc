@@ -1,13 +1,13 @@
 int i = 3.0;
 int b = 0;
 
-int test(string arr[])
+int test(char arr[])
 {
     return 2.0;
 }
 
 void myFunc() {
-    string arr;
+    char arr;
     boolean g;
     while(i > 0 && g);
     test(arr);

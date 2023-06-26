@@ -1,5 +1,4 @@
 %import common.NUMBER
-%import common.ESCAPED_STRING
 %import common.CNAME
 %import common.NEWLINE
 %import common.WS
@@ -31,13 +30,13 @@ TRUE:    "True"
 FALSE:   "False"
 
 num: NUMBER -> literal
-str: ESCAPED_STRING  -> literal
+char: /'.'/ -> literal
 bool: (TRUE|FALSE)  -> literal
 
 ident: CNAME
 array_elem: ident "[" expr "]"
 
-?group: num | str | bool
+?group: num | char | bool
     | ident
     | array_elem
     | call

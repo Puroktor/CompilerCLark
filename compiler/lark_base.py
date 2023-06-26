@@ -3,7 +3,7 @@ from enum import Enum
 
 class BaseType(Enum):
     INT = 'int'
-    STR = 'string'
+    CHAR = 'char'
     BOOLEAN = 'boolean'
     DOUBLE = 'double'
     VOID = 'void'

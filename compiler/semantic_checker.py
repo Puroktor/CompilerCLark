@@ -2,14 +2,6 @@ import visitor
 from lark_ast_nodes import *
 from semantic_base import *
 
-BUILT_IN_FUNCTIONS = '''
-    string readLine() { }
-    void print(string str) { }
-    double parseDouble(string str) { }
-    int parseInt(string str) { }
-    int length(string str) { }
-'''
-
 
 def type_convert(expr: ExprNode, type_: TypeDesc, except_node: Optional[AstNode] = None,
                  comment: Optional[str] = None) -> ExprNode:
@@ -46,13 +38,12 @@ class SemanticChecker:
     def semantic_check(self, node: LiteralNode, scope: IdentScope):
         if isinstance(node.value, bool):
             node.node_type = TypeDesc.BOOLEAN
-        # Проверка должна быть позже bool, т.к. bool наследник от int
         elif isinstance(node.value, int):
             node.node_type = TypeDesc.INT
         elif isinstance(node.value, float):
             node.node_type = TypeDesc.DOUBLE
-        elif isinstance(node.value, str):
-            node.node_type = TypeDesc.STR
+        elif isinstance(node.value, str) and len(node.value) == 1:
+            node.node_type = TypeDesc.CHAR
         else:
             node.semantic_error('Неизвестный тип {} для {}'.format(type(node.value), node.value))
 
@@ -106,6 +97,7 @@ class SemanticChecker:
             except SemanticException as e:
                 var_node.semantic_error(e.message)
             var.semantic_check(self, scope)
+        node.vars_type.node_type = TypeDesc.from_str(node.vars_type.name)
         node.node_type = TypeDesc.VOID
 
     @visitor.when(ArrayDeclNode)
@@ -195,9 +187,10 @@ class SemanticChecker:
     def semantic_check(self, node: ReturnTypeNode, scope: IdentScope) -> None:
         if node.type is None:
             node.semantic_error(f"Неизвестный тип: {type}")
+        node.node_type = TypeDesc.from_str(node.type.name)
 
     @visitor.when(ReturnNode)
-    def semantic_check(self, node: VarsDeclNode, scope: IdentScope) -> None:
+    def semantic_check(self, node: ReturnNode, scope: IdentScope) -> None:
         func = scope.curr_func
         if func is None:
             node.semantic_error('Оператор return применим только в функции')
@@ -269,9 +262,10 @@ class SemanticChecker:
             except:
                 error = True
         if error:
-            node.semantic_error('Фактические типы ({1}) аргументов функции {0} не совпадают с формальными ({2}) и не приводимы'.format(
-                func.name, fact_params_str, decl_params_str
-            ))
+            node.semantic_error(
+                'Фактические типы ({1}) аргументов функции {0} не совпадают с формальными ({2}) и не приводимы'.format(
+                    func.name, fact_params_str, decl_params_str
+                ))
         else:
             node.params = tuple(params)
             node.func.node_type = func.type

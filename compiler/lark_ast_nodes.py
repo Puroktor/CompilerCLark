@@ -1,8 +1,10 @@
 from abc import abstractmethod, ABC
 from typing import Optional, Tuple, Union
 
-from lark_base import BinOp
-from semantic_base import TypeDesc, IdentDesc, SemanticException, IdentScope
+from code_generator_base import CodeGenerator, LLVM_INT_BIN_OPS, LLVM_TYPE_NAMES, LLVM_FLOAT_BIN_OPS, TEMP_VAR_NAME, \
+    get_llvm_conv_operation
+from lark_base import BinOp, BaseType
+from semantic_base import TypeDesc, IdentDesc, SemanticException, IdentScope, is_built_in_func
 
 
 class AstNode(ABC):
@@ -49,12 +51,16 @@ class AstNode(ABC):
     def semantic_check(self, checker, scope: IdentScope):
         checker.semantic_check(self, scope)
 
+    def llvm_gen(self, generator):
+        generator.llvm_gen(self)
+
     def __getitem__(self, index):
         return self.children[index] if index < len(self.children) else None
 
 
 class ExprNode(AstNode):
-    pass
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        pass
 
 
 class StmtNode(ExprNode):
@@ -84,6 +90,11 @@ class LiteralNode(ExprNode):
         self.literal = literal
         self.value = eval(literal)
 
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        if self.node_type.base_type == BaseType.CHAR:
+            return str(ord(self.value))
+        return self.value
+
     def __str__(self) -> str:
         return '{0} ({1})'.format(self.literal, type(self.value).__name__)
 
@@ -93,6 +104,12 @@ class IdentNode(ExprNode):
                  column: Optional[int] = None, line: Optional[int] = None, **props):
         super().__init__(column=column, line=line, **props)
         self.name = str(name)
+
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        index = gen.increment_var_index(self.name)
+        type = LLVM_TYPE_NAMES[self.node_type.base_type]
+        gen.add(f"%{self.name}.{index} = load {type}, {type}* %{self.name}")
+        return f"%{self.name}.{index}"
 
     def __str__(self) -> str:
         return str(self.name)
@@ -111,6 +128,17 @@ class BinOpNode(ExprNode):
     @property
     def children(self) -> Tuple[ExprNode, ExprNode]:
         return self.arg1, self.arg2
+
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        arg1 = self.arg1.llvm_load(gen)
+        arg2 = self.arg2.llvm_load(gen)
+
+        ret = gen.get_temp_var()
+        type = LLVM_TYPE_NAMES[self.arg1.node_type.base_type]
+        bin_op = LLVM_FLOAT_BIN_OPS[self.op] if self.arg1.node_type.base_type == BaseType.DOUBLE else LLVM_INT_BIN_OPS[
+            self.op]
+        gen.add(f"{ret} = {bin_op} {type} {arg1}, {arg2}")
+        return ret
 
     def __str__(self) -> str:
         return str(self.op.value)
@@ -137,6 +165,65 @@ class CallNode(StmtNode):
         super().__init__(column=column, line=line, **props)
         self.func = func
         self.params = params
+
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        result = f"%call.{self.func.name}.{gen.increment_var_index(f'call.{self.func.name}')}"
+
+        if len(self.params) == 0 and is_built_in_func(self.func.name):
+            if self.func.name == "read_int":
+                gen.add(f"call i32 (i8*, ...) @scanf(i8* getelementptr inbounds "
+                        f"([3 x i8], [3 x i8]* @formatInt, i32 0, i32 0), i32* @int.0.0)")
+                gen.add(f"{result} = load i32, i32* @int.0.0")
+
+            elif self.func.name == "read_char":
+                gen.add(f"call i32 (i8*, ...) @scanf(i8* getelementptr inbounds "
+                        f"([3 x i8], [3 x i8]* @formatChar, i32 0, i32 0), i8* @char.0.0)")
+                gen.add(f"{result} = load i8, i8* @char.0.0")
+
+            elif self.func.name == "read_double":
+                gen.add(f"call i32 (i8*, ...) @scanf(i8* getelementptr inbounds "
+                        f"([3 x i8], [3 x i8]* @formatDouble, i32 0, i32 0), double* @double.0.0)")
+                gen.add(f"{result} = load double, double* @double.0.0")
+
+            return result
+
+        elif len(self.params) == 1 and is_built_in_func(self.func.name):
+            var = self.params[0].llvm_load(gen)
+
+            if self.func.name == "print_double" and self.params[0].node_type.base_type == BaseType.DOUBLE:
+                gen.add(f"{result} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds "
+                        f"([3 x i8], [3 x i8]* @formatDouble, i32 0, i32 0), double {var})")
+
+            elif self.func.name == "print_int" and self.params[0].node_type.base_type == BaseType.INT:
+                gen.add(f"{result} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds "
+                        f"([3 x i8], [3 x i8]* @formatInt, i32 0, i32 0), i32 {var})")
+
+            elif self.func.name == "print_char" and self.params[0].node_type.base_type == BaseType.CHAR:
+                gen.add(f"{result} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds "
+                        f"([3 x i8], [3 x i8]* @formatChar, i32 0, i32 0), i8 {var})")
+
+            return result
+
+        call_type = LLVM_TYPE_NAMES[self.node_type.base_type]
+        if self.node_type.is_arr:
+            call_type += "*"
+        if self.node_type.base_type == BaseType.VOID:
+            res_str = f"call void @{self.func.name}("
+        else:
+            res_str = f"{result} = call {call_type} @{self.func.name}("
+        args = []
+        for param in self.params:
+            param_type = LLVM_TYPE_NAMES[param.node_type]
+            if param.node_type.is_arr:
+                var_name = f"%{param.name}.{gen.increment_var_index(param.name)}"
+                gen.add(f'{var_name} = load {param_type}*, {param_type}** %{param.name}')
+                args.append(f'{param_type}* {var_name}')
+            else:
+                args.append(f'{param_type} {param.llvm_load(gen)}')
+
+        res_str += f"{', '.join(args)})"
+        gen.add(res_str)
+        return result
 
     @property
     def children(self) -> Tuple[IdentNode, ...]:
@@ -233,6 +320,34 @@ class ArrayElemNode(ExprNode):
         self.name = name
         self.value = value
 
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        result = f"%{self.name.name}.{gen.increment_var_index(self.name.name)}"
+        self_type = LLVM_TYPE_NAMES[self.node_type.base_type]
+
+        temp_var = gen.get_temp_var()
+        gen.add(f"{temp_var} = load {self_type}*, {self_type}** %{self.name.name}")
+
+        value_type = LLVM_TYPE_NAMES[self.value.node_type.base_type]
+        ptr = gen.get_temp_var()
+        gen.add(f"{ptr} = getelementptr inbounds {self_type}, "
+                f"{self_type}* {temp_var}, "
+                f"{value_type} {self.value.llvm_load(gen)}")
+        gen.add(f"{result} = load {self_type}, {self_type}* {ptr}")
+        return result
+
+    def llvm_load_ptr(self, gen: CodeGenerator) -> str:
+        result = f"%{self.name.name}.{gen.increment_var_index(self.name.name)}"
+        self_type = LLVM_TYPE_NAMES[self.node_type.base_type]
+
+        temp_var = gen.get_temp_var()
+        gen.add(f"{temp_var} = load {self_type}*, {self_type}** %{self.name.name}")
+
+        value_type = LLVM_TYPE_NAMES[self.value.node_type.base_type]
+        gen.add(f"{result} = getelementptr inbounds {self_type}, "
+                f"{self_type}* {temp_var}, "
+                f"{value_type} {self.value.llvm_load(gen)}")
+        return result
+
     @property
     def children(self) -> Tuple[ExprNode, ...]:
         return self.name, self.value
@@ -253,6 +368,10 @@ class ParamNode(StmtNode):
     def children(self) -> Tuple[IdentNode, ExprNode]:
         return self.type_var, self.name
 
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        type = LLVM_TYPE_NAMES[self.type_var.name]
+        return f"{type} %c{self.name.name}"
+
     def __str__(self) -> str:
         return f'param {"[]" if self.is_arr else ""}'
 
@@ -266,6 +385,12 @@ class ParamsListNode(StmtNode):
     @property
     def children(self) -> Tuple[ParamNode]:
         return self.params
+
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        result = list()
+        for arg in self.params:
+            result.append(arg.llvm_load(gen))
+        return ', '.join(result)
 
     def __str__(self) -> str:
         return 'params_list'
@@ -346,6 +471,24 @@ class TypeConvertNode(ExprNode):
         self.expr = expr
         self.type = type_
         self.node_type = type_
+
+    def llvm_load(self, gen: CodeGenerator) -> str:
+        var = self.expr.llvm_load(gen)
+        type_from = self.expr.node_type.base_type
+        llvm_type_from = LLVM_TYPE_NAMES[type_from]
+        type_to = self.node_type.base_type
+        llvm_type_to = LLVM_TYPE_NAMES[type_to]
+        conv_op = get_llvm_conv_operation(type_from, type_to)
+        temp_var = gen.get_temp_var()
+
+        if type_to == BaseType.BOOLEAN and (type_from == BaseType.CHAR or type_from == BaseType.INT):
+            gen.add(f"{temp_var} = icmp ne {llvm_type_from} 0, {var}")
+        elif type_to == BaseType.BOOLEAN and type_from == BaseType.DOUBLE:
+            gen.add(f"{temp_var} = fcmp one {llvm_type_from} 0.0, {var}")
+        else:
+            gen.add(f"{temp_var} = {conv_op} {llvm_type_from} {var} to {llvm_type_to}")
+
+        return temp_var
 
     def __str__(self) -> str:
         return 'convert'

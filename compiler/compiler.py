@@ -3,6 +3,7 @@ import sys
 
 import lark_parser
 import semantic_checker
+from code_generator_llvm import LLVMCodeGenerator
 from semantic_base import SemanticException
 
 OK_TEST_DIR = './tests/ok'
@@ -28,8 +29,14 @@ def compile(src, print_trees):
             print('После семантической проверки')
             print(*prog.tree, sep=os.linesep)
 
+        gen = LLVMCodeGenerator()
+        gen.start()
+        gen.llvm_gen(prog)
+        print(str(gen))
+
     except SemanticException as e:
         print('Синтаксическая ошибка: {}'.format(e.message), file=sys.stderr)
+        exit(1)
 
 
 def test_compiler():
@@ -53,6 +60,8 @@ def test_compiler():
 
     if passed_all:
         print('Все тесты успешно пройдены')
+    else:
+        exit(2)
 
 
 def exec_parsing(checker, file):

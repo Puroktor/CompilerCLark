@@ -3,7 +3,7 @@ from enum import Enum
 
 from lark_base import BaseType, BinOp
 
-VOID, INT, DOUBLE, BOOLEAN, STR = BaseType.VOID, BaseType.INT, BaseType.DOUBLE, BaseType.BOOLEAN, BaseType.STR
+VOID, INT, DOUBLE, BOOLEAN, CHAR = BaseType.VOID, BaseType.INT, BaseType.DOUBLE, BaseType.BOOLEAN, BaseType.CHAR
 
 
 class TypeDesc:
@@ -14,12 +14,12 @@ class TypeDesc:
     INT: 'TypeDesc'
     DOUBLE: 'TypeDesc'
     BOOLEAN: 'TypeDesc'
-    STR: 'TypeDesc'
+    CHAR: 'TypeDesc'
 
     INT_ARRAY: 'TypeDesc'
-    FLOAT_ARRAY: 'TypeDesc'
+    DOUBLE_ARRAY: 'TypeDesc'
     BOOLEAN_ARRAY: 'TypeDesc'
-    STR_ARRAY: 'TypeDesc'
+    CHAR_ARRAY: 'TypeDesc'
 
     def __init__(self, base_type_: Optional[BaseType] = None,
                  return_type: Optional['TypeDesc'] = None, params: Optional[Tuple['TypeDesc']] = None,
@@ -231,16 +231,17 @@ class SemanticException(Exception):
 
 
 TYPE_CONVERTIBILITY = {
-    INT: (DOUBLE, BOOLEAN, STR),
-    DOUBLE: (STR,),
-    BOOLEAN: (STR,)
+    BOOLEAN: (INT, CHAR, DOUBLE),
+    CHAR: (INT, BOOLEAN, DOUBLE),
+    INT: (DOUBLE, BOOLEAN, CHAR),
+    DOUBLE: (BOOLEAN, INT, CHAR),
 }
 
 BIN_OP_TYPE_COMPATIBILITY = {
     BinOp.ADD: {
         (INT, INT): INT,
         (DOUBLE, DOUBLE): DOUBLE,
-        (STR, STR): STR
+        (CHAR, CHAR): CHAR
     },
     BinOp.SUB: {
         (INT, INT): INT,
@@ -262,32 +263,32 @@ BIN_OP_TYPE_COMPATIBILITY = {
     BinOp.GT: {
         (INT, INT): BOOLEAN,
         (DOUBLE, DOUBLE): BOOLEAN,
-        (STR, STR): BOOLEAN,
+        (CHAR, CHAR): BOOLEAN,
     },
     BinOp.LT: {
         (INT, INT): BOOLEAN,
         (DOUBLE, DOUBLE): BOOLEAN,
-        (STR, STR): BOOLEAN,
+        (CHAR, CHAR): BOOLEAN,
     },
     BinOp.GE: {
         (INT, INT): BOOLEAN,
         (DOUBLE, DOUBLE): BOOLEAN,
-        (STR, STR): BOOLEAN,
+        (CHAR, CHAR): BOOLEAN,
     },
     BinOp.LE: {
         (INT, INT): BOOLEAN,
         (DOUBLE, DOUBLE): BOOLEAN,
-        (STR, STR): BOOLEAN,
+        (CHAR, CHAR): BOOLEAN,
     },
     BinOp.EQUALS: {
         (INT, INT): BOOLEAN,
         (DOUBLE, DOUBLE): BOOLEAN,
-        (STR, STR): BOOLEAN,
+        (CHAR, CHAR): BOOLEAN,
     },
     BinOp.NEQUALS: {
         (INT, INT): BOOLEAN,
         (DOUBLE, DOUBLE): BOOLEAN,
-        (STR, STR): BOOLEAN,
+        (CHAR, CHAR): BOOLEAN,
     },
 
     BinOp.LOGICAL_AND: {
@@ -297,3 +298,21 @@ BIN_OP_TYPE_COMPATIBILITY = {
         (BOOLEAN, BOOLEAN): BOOLEAN
     },
 }
+
+BUILT_IN_FUNCTIONS = '''
+    void print_int(int var){}
+    void print_double(double var){}
+    void print_char(char var){}
+    int read_int(){}
+    double read_double(){}
+    char read_char(){}
+'''
+
+
+def is_built_in_func(name: str) -> bool:
+    return name == "print_double" \
+        or name == "print_int" \
+        or name == "print_char" \
+        or name == "read_int" \
+        or name == "read_double" \
+        or name == "read_char"
