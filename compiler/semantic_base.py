@@ -307,12 +307,3 @@ BUILT_IN_FUNCTIONS = '''
     double read_double(){}
     char read_char(){}
 '''
-
-
-def is_built_in_func(name: str) -> bool:
-    return name == "print_double" \
-        or name == "print_int" \
-        or name == "print_char" \
-        or name == "read_int" \
-        or name == "read_double" \
-        or name == "read_char"

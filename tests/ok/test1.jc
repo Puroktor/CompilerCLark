@@ -1,5 +1,10 @@
+int func() {
+    return 5;
+}
+
+int n = func();
+
 void main() {
-    int n = 5;
     char arr[n];
     arr[0] = 'H';
     arr[1] = 'e';
@@ -11,5 +16,5 @@ void main() {
         print_char(arr[i]);
     }
     // waiting for user input
-    int a = read_char();
+    read_char();
 }

@@ -1,24 +1,19 @@
-declare i32 @printf(i8*, ...) nounwind
-declare i32 @scanf(i8*, ...) nounwind
-
+declare i32 @read_int()
+declare double @read_double()
+declare i8 @read_char()
+declare void @print_int(i32)
+declare void @print_double(double)
+declare void @print_char(i8)
 declare void @llvm.memcpy.p0i32.p0i32.i32(i32*, i32*, i32, i1)
 declare void @llvm.memcpy.p0i1.p0i1.i32(i1*, i1*, i32, i1)
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8*, i8*, i32, i1)
 declare void @llvm.memcpy.p0double.p0double.i32(double*, double*, i32, i1)
 
-@int.0.0 = global i32 0
-@char.0.0 = global i8 0
-@double.0.0 = global double 0.0
-
-@formatInt = private constant [3 x i8] c"%d\00"
-@formatDouble = private constant [3 x i8] c"%f\00"
-@formatChar = private constant [3 x i8] c"%c\00"
-
-define void @main () {
-
 %n = alloca i32
 %n.0 = add i32 0, 5
 store i32 %n.0, i32* %n
+define void @main () {
+
 %n.1 = load i32, i32* %n
 %arr.0 = alloca i8, i32 %n.1
 %arr = alloca i8*
@@ -61,7 +56,7 @@ for.body.0:
 %i.2 = load i32, i32* %i
 %temp.7 = getelementptr inbounds i8, i8* %temp.6, i32 %i.2
 %arr.11 = load i8, i8* %temp.7
-%call.print_char.0 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @formatChar, i32 0, i32 0), i8 %arr.11)
+call void @print_char(i8 %arr.11)
 br label %for.hatch.0
 
 
@@ -72,11 +67,7 @@ store i32 %temp.8, i32* %i
 br label %for.cond.0
 
 for.exit.0:
-%a = alloca i32
-call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @formatChar, i32 0, i32 0), i8* @char.0.0)
-%call.read_char.0 = load i8, i8* @char.0.0
-%temp.9 = zext i8 %call.read_char.0 to i32
-store i32 %temp.9, i32* %a
+%call.read_char.0 = call i8 @read_char()
 ret void
 }
 

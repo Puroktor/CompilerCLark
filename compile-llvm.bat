@@ -1,5 +1,7 @@
 @echo off
 
+set RUNTIME_LLVM=%~dp0.\runtime-llvm\runtime.ll
+
 if "%~1"=="" (
   (
     echo Usage:
@@ -21,4 +23,4 @@ if not "%STATUS%"=="0" (
   del /f /q "%~dpn1.ll"
   exit %STATUS%
 )
-call clang "%~dpn1.ll" -o "%~dpn1.exe"
+call clang "%~dpn1.ll" "%RUNTIME_LLVM%" -o "%~dpn1.exe"

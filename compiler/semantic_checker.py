@@ -46,6 +46,7 @@ class SemanticChecker:
             node.node_type = TypeDesc.CHAR
         else:
             node.semantic_error('Неизвестный тип {} для {}'.format(type(node.value), node.value))
+        node.scope = scope
 
     @visitor.when(IdentNode)
     def semantic_check(self, node: IdentNode, scope: IdentScope):

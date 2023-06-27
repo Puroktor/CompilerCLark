@@ -8,21 +8,13 @@ from lark_base import BaseType
 class LLVMCodeGenerator(CodeGenerator):
 
     def start(self):
-        self.add("declare i32 @printf(i8*, ...) nounwind")
-        self.add("declare i32 @scanf(i8*, ...) nounwind\n")
+        for function in BUILT_IN_FUNCTIONS:
+            self.add(function)
 
         self.add("declare void @llvm.memcpy.p0i32.p0i32.i32(i32*, i32*, i32, i1)")
         self.add("declare void @llvm.memcpy.p0i1.p0i1.i32(i1*, i1*, i32, i1)")
         self.add("declare void @llvm.memcpy.p0i8.p0i8.i32(i8*, i8*, i32, i1)")
         self.add("declare void @llvm.memcpy.p0double.p0double.i32(double*, double*, i32, i1)\n")
-
-        self.add(f"@int.0.0 = global i32 0")
-        self.add(f"@char.0.0 = global i8 0")
-        self.add(f"@double.0.0 = global double 0.0\n")
-
-        self.add("@formatInt = private constant [3 x i8] c\"%d\\00\"")
-        self.add("@formatDouble = private constant [3 x i8] c\"%f\\00\"")
-        self.add("@formatChar = private constant [3 x i8] c\"%c\\00\"\n")
 
     @visitor.on('AstNode')
     def llvm_gen(self, AstNode):
@@ -143,7 +135,7 @@ class LLVMCodeGenerator(CodeGenerator):
 
         self.add(f"\n{for_body}:")
         node.body.llvm_gen(self)
-        self.add(f"br label %{for_hatch}\n")
+        self.add(f"br label %{for_hatch}")
 
         self.add(f"\n{for_hatch}:")
         node.step.llvm_gen(self)

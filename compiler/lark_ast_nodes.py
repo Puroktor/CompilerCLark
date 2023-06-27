@@ -1,10 +1,10 @@
 from abc import abstractmethod, ABC
 from typing import Optional, Tuple, Union
 
-from code_generator_base import CodeGenerator, LLVM_INT_BIN_OPS, LLVM_TYPE_NAMES, LLVM_FLOAT_BIN_OPS, TEMP_VAR_NAME, \
+from code_generator_base import CodeGenerator, LLVM_INT_BIN_OPS, LLVM_TYPE_NAMES, LLVM_FLOAT_BIN_OPS, \
     get_llvm_conv_operation
 from lark_base import BinOp, BaseType
-from semantic_base import TypeDesc, IdentDesc, SemanticException, IdentScope, is_built_in_func
+from semantic_base import TypeDesc, IdentDesc, SemanticException, IdentScope
 
 
 class AstNode(ABC):
@@ -168,42 +168,6 @@ class CallNode(StmtNode):
 
     def llvm_load(self, gen: CodeGenerator) -> str:
         result = f"%call.{self.func.name}.{gen.increment_var_index(f'call.{self.func.name}')}"
-
-        if len(self.params) == 0 and is_built_in_func(self.func.name):
-            if self.func.name == "read_int":
-                gen.add(f"call i32 (i8*, ...) @scanf(i8* getelementptr inbounds "
-                        f"([3 x i8], [3 x i8]* @formatInt, i32 0, i32 0), i32* @int.0.0)")
-                gen.add(f"{result} = load i32, i32* @int.0.0")
-
-            elif self.func.name == "read_char":
-                gen.add(f"call i32 (i8*, ...) @scanf(i8* getelementptr inbounds "
-                        f"([3 x i8], [3 x i8]* @formatChar, i32 0, i32 0), i8* @char.0.0)")
-                gen.add(f"{result} = load i8, i8* @char.0.0")
-
-            elif self.func.name == "read_double":
-                gen.add(f"call i32 (i8*, ...) @scanf(i8* getelementptr inbounds "
-                        f"([3 x i8], [3 x i8]* @formatDouble, i32 0, i32 0), double* @double.0.0)")
-                gen.add(f"{result} = load double, double* @double.0.0")
-
-            return result
-
-        elif len(self.params) == 1 and is_built_in_func(self.func.name):
-            var = self.params[0].llvm_load(gen)
-
-            if self.func.name == "print_double" and self.params[0].node_type.base_type == BaseType.DOUBLE:
-                gen.add(f"{result} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds "
-                        f"([3 x i8], [3 x i8]* @formatDouble, i32 0, i32 0), double {var})")
-
-            elif self.func.name == "print_int" and self.params[0].node_type.base_type == BaseType.INT:
-                gen.add(f"{result} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds "
-                        f"([3 x i8], [3 x i8]* @formatInt, i32 0, i32 0), i32 {var})")
-
-            elif self.func.name == "print_char" and self.params[0].node_type.base_type == BaseType.CHAR:
-                gen.add(f"{result} = call i32 (i8*, ...) @printf(i8* getelementptr inbounds "
-                        f"([3 x i8], [3 x i8]* @formatChar, i32 0, i32 0), i8 {var})")
-
-            return result
-
         call_type = LLVM_TYPE_NAMES[self.node_type.base_type]
         if self.node_type.is_arr:
             call_type += "*"
@@ -213,7 +177,7 @@ class CallNode(StmtNode):
             res_str = f"{result} = call {call_type} @{self.func.name}("
         args = []
         for param in self.params:
-            param_type = LLVM_TYPE_NAMES[param.node_type]
+            param_type = LLVM_TYPE_NAMES[param.node_type.base_type]
             if param.node_type.is_arr:
                 var_name = f"%{param.name}.{gen.increment_var_index(param.name)}"
                 gen.add(f'{var_name} = load {param_type}*, {param_type}** %{param.name}')

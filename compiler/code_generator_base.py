@@ -51,6 +51,15 @@ LLVM_FLOAT_BIN_OPS = {
     BinOp.LOGICAL_OR: 'or'
 }
 
+BUILT_IN_FUNCTIONS = [
+    "declare i32 @read_int()",
+    "declare double @read_double()",
+    "declare i8 @read_char()",
+    "declare void @print_int(i32)",
+    "declare void @print_double(double)",
+    "declare void @print_char(i8)"
+]
+
 
 def get_llvm_conv_operation(arg_from: BaseType, arg_to: BaseType) -> str:
     if ((arg_from == BaseType.BOOLEAN or arg_from == BaseType.CHAR) and (arg_to == BaseType.INT)) \
