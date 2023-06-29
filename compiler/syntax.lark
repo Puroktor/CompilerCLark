@@ -30,7 +30,7 @@ TRUE:    "True"
 FALSE:   "False"
 
 num: NUMBER -> literal
-char: /'.'/ -> literal
+char: /'(\\)?.'/ -> literal
 bool: (TRUE|FALSE)  -> literal
 
 ident: CNAME

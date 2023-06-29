@@ -9,13 +9,11 @@ declare void @llvm.memcpy.p0i1.p0i1.i32(i1*, i1*, i32, i1)
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8*, i8*, i32, i1)
 declare void @llvm.memcpy.p0double.p0double.i32(double*, double*, i32, i1)
 
-%n = alloca i32
-%n.0 = add i32 0, 5
-store i32 %n.0, i32* %n
-define void @main () {
+define void @print_hello (i32 %cn) {
 
-%n.1 = load i32, i32* %n
-%arr.0 = alloca i8, i32 %n.1
+%n = alloca i32
+store i32 %cn, i32* %n
+%arr.0 = alloca i8, i32 5
 %arr = alloca i8*
 store i8* %arr.0, i8** %arr
 %temp.0 = load i8*, i8** %arr
@@ -48,26 +46,59 @@ br label %for.cond.0
 
 for.cond.0:
 %i.1 = load i32, i32* %i
-%temp.5 = icmp slt i32 %i.1, 5
+%n.0 = load i32, i32* %n
+%temp.5 = icmp slt i32 %i.1, %n.0
 br i1 %temp.5, label %for.body.0, label %for.exit.0
 
 for.body.0:
-%temp.6 = load i8*, i8** %arr
-%i.2 = load i32, i32* %i
-%temp.7 = getelementptr inbounds i8, i8* %temp.6, i32 %i.2
-%arr.11 = load i8, i8* %temp.7
+
+br label %for.head.1
+for.head.1:
+%j = alloca i32
+%j.0 = add i32 0, 0
+store i32 %j.0, i32* %j
+br label %for.cond.1
+
+for.cond.1:
+%j.1 = load i32, i32* %j
+%temp.6 = icmp slt i32 %j.1, 5
+br i1 %temp.6, label %for.body.1, label %for.exit.1
+
+for.body.1:
+%temp.7 = load i8*, i8** %arr
+%j.2 = load i32, i32* %j
+%temp.8 = getelementptr inbounds i8, i8* %temp.7, i32 %j.2
+%arr.11 = load i8, i8* %temp.8
 call void @print_char(i8 %arr.11)
+br label %for.hatch.1
+
+for.hatch.1:
+%j.3 = load i32, i32* %j
+%temp.9 = add i32 %j.3, 1
+store i32 %temp.9, i32* %j
+br label %for.cond.1
+
+for.exit.1:
+call void @print_char(i8 10)
 br label %for.hatch.0
 
-
 for.hatch.0:
-%i.3 = load i32, i32* %i
-%temp.8 = add i32 %i.3, 1
-store i32 %temp.8, i32* %i
+%i.2 = load i32, i32* %i
+%temp.10 = add i32 %i.2, 1
+store i32 %temp.10, i32* %i
 br label %for.cond.0
 
 for.exit.0:
 %call.read_char.0 = call i8 @read_char()
+ret void
+}
+define void @main () {
+
+%n = alloca i32
+%call.read_int.0 = call i32 @read_int()
+store i32 %call.read_int.0, i32* %n
+%n.1 = load i32, i32* %n
+call void @print_hello(i32 %n.1)
 ret void
 }
 

@@ -2,6 +2,7 @@ int[] test() {
     return 1;
 }
 
-void main() {
+int main() {
     test();
+    return 0;
 }

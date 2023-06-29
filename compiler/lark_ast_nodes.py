@@ -333,7 +333,7 @@ class ParamNode(StmtNode):
         return self.type_var, self.name
 
     def llvm_load(self, gen: CodeGenerator) -> str:
-        type = LLVM_TYPE_NAMES[self.type_var.name]
+        type = LLVM_TYPE_NAMES[self.type_var.node_type.base_type]
         return f"{type} %c{self.name.name}"
 
     def __str__(self) -> str:

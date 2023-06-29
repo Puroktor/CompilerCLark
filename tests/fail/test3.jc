@@ -15,5 +15,6 @@ void myFunc() {
 
 int z = 1 + 1;
 
-void main(int a) {
+int main(int a) {
+    return 0;
 }

@@ -1,20 +1,21 @@
-int func() {
-    return 5;
-}
-
-int n = func();
-
-void main() {
-    char arr[n];
+void print_hello(int n) {
+    char arr[5];
     arr[0] = 'H';
     arr[1] = 'e';
     arr[2] = 'l';
     arr[3] = 'l';
     arr[4] = 'o';
 
-    for (int i = 0; i < 5; i = i + 1) {
-        print_char(arr[i]);
+    for (int i = 0; i < n; i = i + 1) {
+        for (int j = 0; j < 5; j = j + 1) {
+            print_char(arr[j]);
+        }
+         print_char('\n');
     }
-    // waiting for user input
-    read_char();
+}
+
+int main() {
+    int n = read_int();
+    print_hello(n);
+    return 0;
 }

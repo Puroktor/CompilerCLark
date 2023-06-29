@@ -43,6 +43,8 @@ def test_compiler():
     checker = semantic_checker.SemanticChecker()
     passed_all = True
     for filename in os.listdir(OK_TEST_DIR):
+        if not filename.endswith('.jc'):
+            continue
         with open(os.path.join(OK_TEST_DIR, filename), 'r') as f:
             try:
                 exec_parsing(checker, f)

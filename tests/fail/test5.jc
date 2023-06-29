@@ -1,3 +1,4 @@
-void main() {
-    int ohNo = read_int();
+int main() {
+    char[] ohNo = read_int();
+    return 0;
 }

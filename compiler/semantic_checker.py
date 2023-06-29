@@ -99,6 +99,7 @@ class SemanticChecker:
                 var_node.semantic_error(e.message)
             var.semantic_check(self, scope)
         node.vars_type.node_type = TypeDesc.from_str(node.vars_type.name)
+        node.scope = scope
         node.node_type = TypeDesc.VOID
 
     @visitor.when(ArrayDeclNode)
@@ -182,6 +183,7 @@ class SemanticChecker:
             node.name.node_ident = scope.add_ident(IdentDesc(node.name.name, TypeDesc.from_str(str(node.type_var), node.is_arr)))
         except:
             raise node.name.semantic_error(f'Параметр {node.name.name} уже объявлен')
+        node.type_var.node_type = TypeDesc.from_str(node.type_var.name)
         node.node_type = TypeDesc.VOID
 
     @visitor.when(ReturnTypeNode)
@@ -288,7 +290,7 @@ def prepare_global_scope() -> IdentScope:
 
 def check_program_struct(scope):
     main_func = scope.get_ident('main')
-    main_type_ = TypeDesc(None, TypeDesc.from_str('void'), tuple())
+    main_type_ = TypeDesc(None, TypeDesc.from_str('int'), tuple())
     not_present = main_func is None or main_func.type != main_type_
     if not_present:
         raise SemanticException('Главная функция void main() отсутствует')

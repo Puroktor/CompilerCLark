@@ -27,13 +27,20 @@ class LLVMCodeGenerator(CodeGenerator):
     def llvm_gen(self, node: VarsDeclNode):
         type = LLVM_TYPE_NAMES[node.vars_type.node_type.base_type]
         val = LLVM_TYPE_DEFAULT_VALUES[node.vars_type.node_type.base_type]
-        for node in node.vars_list:
-            if isinstance(node, AssignNode):
-                self.add(f"%{node.var.name} = alloca {type}")
-                node.llvm_gen(self)
-            if isinstance(node, IdentNode):
-                self.add(f"%{node.name} = alloca {type}")
-                self.add(f"store {type} {val}, {type}* %{node.name}")
+        for var in node.vars_list:
+            if node.scope.is_global:
+                if isinstance(var, AssignNode):
+                    self.add(f"@{var.var.name} = global {type}")
+                    var.llvm_gen(self)
+                if isinstance(var, IdentNode):
+                    self.add(f"@{var.name} = global {type} {val}")
+            else:
+                if isinstance(var, AssignNode):
+                    self.add(f"%{var.var.name} = alloca {type}")
+                    var.llvm_gen(self)
+                if isinstance(var, IdentNode):
+                    self.add(f"%{var.name} = alloca {type}")
+                    self.add(f"store {type} {val}, {type}* %{var.name}")
 
     @visitor.when(AssignNode)
     def llvm_gen(self, node: AssignNode):
@@ -74,8 +81,8 @@ class LLVMCodeGenerator(CodeGenerator):
         if isinstance(node.val, LiteralNode):
             value_index = self.increment_var_index(var_name)
             value = node.val.llvm_load(self)
-            self.add(f"%{var_name}.{value_index} = {add} {value_type} "
-                     f"{0.0 if node.node_type.base_type == BaseType.DOUBLE else 0}, {value}")
+            default = LLVM_TYPE_DEFAULT_VALUES[node.node_type.base_type]
+            self.add(f"%{var_name}.{value_index} = {add} {value_type} {default}, {value}")
             self.add(f"store {value_type} %{var_name}.{value_index}, {value_type}* {target_ptr}")
 
         elif isinstance(node.val, ExprNode):
@@ -97,9 +104,9 @@ class LLVMCodeGenerator(CodeGenerator):
     def llvm_gen(self, node: IfNode):
         index = self.increment_var_index('if')
         cond_res = node.cond.llvm_load(self)
-        eq_label = f"IfTrue.0.{index}"
-        neq_label = f"IfFalse.0.{index}"
-        res_label = f"IfEnd.0.{index}"
+        eq_label = f"IfTrue.{index}"
+        neq_label = f"IfFalse.{index}"
+        res_label = f"IfEnd.{index}"
 
         self.add(
             f"br i1 {cond_res}, label %{eq_label}, label %{neq_label if node.else_stmt is not None else res_label}\n")
@@ -196,7 +203,7 @@ class LLVMCodeGenerator(CodeGenerator):
 
         if len(node.param_list.children) > 0:
             for arg in node.param_list.children:
-                arg_type = LLVM_TYPE_NAMES[arg.type_var.name]
+                arg_type = LLVM_TYPE_NAMES[arg.type_var.node_type.base_type]
                 if isinstance(arg, ParamNode):
                     self.add(f"%{arg.name} = alloca {arg_type}")
                     self.add(f"store {arg_type} %c{arg.name}, {arg_type}* %{arg.name}")
