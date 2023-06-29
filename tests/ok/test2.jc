@@ -1,0 +1,21 @@
+int get_str_size() {
+    return 5;
+}
+
+int size = get_str_size();
+
+void print_hello(char arr[], int n) {
+    for (int i = 0; i < n; i = i + 1) {
+        for (int j = 0; j < size; j = j + 1) {
+            print_char(arr[j]);
+        }
+        print_char('\n');
+    }
+}
+
+int main() {
+    char str[size] = "Hello";
+    int n = read_int();
+    print_hello(str, n);
+    return 0;
+}

@@ -1,6 +1,11 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 
+void print_str(char str[])
+{
+    printf("%s", str);
+}
+
 void print_char(char ch)
 {
     printf("%c", ch);

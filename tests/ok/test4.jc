@@ -1,0 +1,24 @@
+int main() {
+    int n = read_int();
+    int arr[n];
+    for (int k=0; k<n; k=k+1) {
+        arr[k] = read_int();
+    }
+
+    // Bubble Sort
+    for (int step = 0; step < n - 1; step = step + 1) {
+        for (int i = 0; i < n - step - 1; i = i + 1) {
+          if (arr[i] > arr[i + 1]) {
+            int temp = arr[i];
+            arr[i] = arr[i + 1];
+            arr[i + 1] = temp;
+          }
+        }
+    }
+
+    for (int j=0; j<n; j=j+1) {
+        print_int(arr[j]);
+        print_char(' ');
+    }
+    return 0;
+}

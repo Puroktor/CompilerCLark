@@ -44,6 +44,8 @@ class SemanticChecker:
             node.node_type = TypeDesc.DOUBLE
         elif isinstance(node.value, str) and len(node.value) == 1:
             node.node_type = TypeDesc.CHAR
+        elif isinstance(node.value, str):
+            node.node_type = TypeDesc.CHAR_ARRAY
         else:
             node.semantic_error('Неизвестный тип {} для {}'.format(type(node.value), node.value))
 
@@ -108,21 +110,23 @@ class SemanticChecker:
 
         try:
             node.value.semantic_check(self, scope)
-            scope.add_ident(ArrayDesc(str(node.name), TypeDesc.from_str(str(node.type_var), True),
-                                      type_convert(node.value, TypeDesc.INT, node)))
+            array_desc = ArrayDesc(str(node.name), TypeDesc.from_str(str(node.type_var), True),
+                                   type_convert(node.value, TypeDesc.INT, node))
+            scope.add_ident(array_desc)
+            node.node_type = TypeDesc.from_str(str(node.type_var), True)
+            node.node_ident = array_desc
         except SemanticException as e:
             node.semantic_error(e.message)
-        node.node_type = TypeDesc.from_str(str(node.type_var), True)
 
     @visitor.when(ArrayElemNode)
     def semantic_check(self, node: ArrayElemNode, scope: IdentScope) -> None:
         node.name.semantic_check(self, scope)
         node.value.semantic_check(self, scope)
         curr_ident = scope.get_ident(str(node.name))
-        if not isinstance(curr_ident, ArrayDesc):
+        if not curr_ident.type.is_arr:
             node.semantic_error(f"{node.name} не массив")
 
-        node.node_type = scope.get_ident(str(node.name)).toIdentDesc().type
+        node.node_type = curr_ident.element_desc().type
 
     @visitor.when(AssignNode)
     def semantic_check(self, node: AssignNode, scope: IdentScope) -> None:
@@ -134,6 +138,7 @@ class SemanticChecker:
             node.semantic_error("несовместимые типы")
 
         node.val = type_convert(node.val, node.var.node_type, node, 'присваиваемое значение')
+        node.node_ident = node.var.node_type
         node.node_type = node.var.node_type
 
     @visitor.when(IfNode)
@@ -179,7 +184,8 @@ class SemanticChecker:
     @visitor.when(ParamNode)
     def semantic_check(self, node: ParamNode, scope: IdentScope) -> None:
         try:
-            node.name.node_ident = scope.add_ident(IdentDesc(node.name.name, TypeDesc.from_str(str(node.type_var), node.is_arr)))
+            node.name.node_ident = scope.add_ident(
+                IdentDesc(node.name.name, TypeDesc.from_str(str(node.type_var), node.is_arr)))
         except:
             raise node.name.semantic_error(f'Параметр {node.name.name} уже объявлен')
         node.type_var.node_type = TypeDesc.from_str(node.type_var.name)

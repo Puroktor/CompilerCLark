@@ -27,12 +27,15 @@ $_vfscanf_l = comdat any
 
 $__local_stdio_scanf_options = comdat any
 
+$"??_C@_02DKCKIIND@?$CFs?$AA@" = comdat any
+
 $"??_C@_02HAOIJKIC@?$CFc?$AA@" = comdat any
 
 $"??_C@_02DPKJAMEF@?$CFd?$AA@" = comdat any
 
 $"??_C@_03DLDNIBIK@?$CFlf?$AA@" = comdat any
 
+@"??_C@_02DKCKIIND@?$CFs?$AA@" = linkonce_odr dso_local unnamed_addr constant [3 x i8] c"%s\00", comdat, align 1
 @"??_C@_02HAOIJKIC@?$CFc?$AA@" = linkonce_odr dso_local unnamed_addr constant [3 x i8] c"%c\00", comdat, align 1
 @"??_C@_02DPKJAMEF@?$CFd?$AA@" = linkonce_odr dso_local unnamed_addr constant [3 x i8] c"%d\00", comdat, align 1
 @"??_C@_03DLDNIBIK@?$CFlf?$AA@" = linkonce_odr dso_local unnamed_addr constant [4 x i8] c"%lf\00", comdat, align 1
@@ -114,12 +117,11 @@ define linkonce_odr dso_local i32 @_vsnprintf(ptr noundef %0, i64 noundef %1, pt
 }
 
 ; Function Attrs: noinline nounwind optnone uwtable
-define dso_local void @print_char(i8 noundef %0) #0 {
-  %2 = alloca i8, align 1
-  store i8 %0, ptr %2, align 1
-  %3 = load i8, ptr %2, align 1
-  %4 = sext i8 %3 to i32
-  %5 = call i32 (ptr, ...) @printf(ptr noundef @"??_C@_02HAOIJKIC@?$CFc?$AA@", i32 noundef %4)
+define dso_local void @print_str(ptr noundef %0) #0 {
+  %2 = alloca ptr, align 8
+  store ptr %0, ptr %2, align 8
+  %3 = load ptr, ptr %2, align 8
+  %4 = call i32 (ptr, ...) @printf(ptr noundef @"??_C@_02DKCKIIND@?$CFs?$AA@", ptr noundef %3)
   ret void
 }
 
@@ -138,6 +140,16 @@ define linkonce_odr dso_local i32 @printf(ptr noundef %0, ...) #0 comdat {
   call void @llvm.va_end(ptr %4)
   %9 = load i32, ptr %3, align 4
   ret i32 %9
+}
+
+; Function Attrs: noinline nounwind optnone uwtable
+define dso_local void @print_char(i8 noundef %0) #0 {
+  %2 = alloca i8, align 1
+  store i8 %0, ptr %2, align 1
+  %3 = load i8, ptr %2, align 1
+  %4 = sext i8 %3 to i32
+  %5 = call i32 (ptr, ...) @printf(ptr noundef @"??_C@_02HAOIJKIC@?$CFc?$AA@", i32 noundef %4)
+  ret void
 }
 
 ; Function Attrs: noinline nounwind optnone uwtable

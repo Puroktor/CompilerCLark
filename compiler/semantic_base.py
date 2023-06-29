@@ -118,6 +118,11 @@ class IdentDesc:
         self.index = index
         self.built_in = False
 
+    def element_desc(self):
+        name = str(self.type.base_type).replace("array ", "")
+        tp = self.type.from_str(name)
+        return IdentDesc(self.name, tp, self.scope, self.index)
+
     def __str__(self) -> str:
         return '{}, {}, {}'.format(self.type, self.scope, 'built-in' if self.built_in else self.index)
 
@@ -128,12 +133,6 @@ class ArrayDesc(IdentDesc):
                  index: int = 0) -> None:
         super().__init__(name, type_, scope, index)
         self.size = size
-
-    def toIdentDesc(self):
-        name = str(self.type.base_type).replace("array ", "")
-        tp = self.type.from_str(name)
-        k = IdentDesc(self.name, tp, self.scope, self.index)
-        return k
 
     def __str__(self) -> str:
         return f'{self.type}[{self.size}], {self.scope}, {"built-in" if self.built_in else self.index}'
@@ -306,5 +305,6 @@ BUILT_IN_FUNCTIONS = '''
     int read_int(){}
     double read_double(){}
     char read_char(){}
+    void print_str(char str[]) {}
     void _main() {}
 '''

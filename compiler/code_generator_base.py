@@ -3,6 +3,7 @@ from typing import List, Dict
 from lark_base import BaseType, BinOp
 
 TEMP_VAR_NAME = 'temp'
+STR_CONST_NAME = '_str'
 
 LLVM_TYPE_NAMES = {
     BaseType.VOID: 'void',
@@ -57,7 +58,8 @@ BUILT_IN_FUNCTIONS = [
     "declare i8 @read_char()",
     "declare void @print_int(i32)",
     "declare void @print_double(double)",
-    "declare void @print_char(i8)"
+    "declare void @print_char(i8)",
+    "declare void @print_str(i8*)"
 ]
 
 
@@ -89,6 +91,9 @@ class CodeGenerator:
     def __init__(self):
         self.code_lines: List[CodeLine] = []
         self.var_counter: Dict[str, int] = {}
+
+    def add_first(self, code: str):
+        self.code_lines.insert(0, CodeLine(code))
 
     def add(self, code: str):
         self.code_lines.append(CodeLine(code))

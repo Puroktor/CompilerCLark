@@ -40,6 +40,11 @@ class LLVMCodeGenerator(CodeGenerator):
 
     @visitor.when(LiteralNode)
     def llvm_gen(self, node: LiteralNode):
+        if node.node_type.array and node.node_type.base_type == BaseType.CHAR:
+            index = self.increment_var_index(STR_CONST_NAME)
+            var = f"@{STR_CONST_NAME}{index}"
+            self.add_first(f"{var} = private unnamed_addr constant [{len(node.value)} x i8] c\"{node.value}\"")
+            return var
         if node.node_type.base_type == BaseType.CHAR:
             return str(ord(node.value))
         return node.value
@@ -87,19 +92,16 @@ class LLVMCodeGenerator(CodeGenerator):
                 self.add(f"store {var_type}* {result}, {var_type}** %{node.var.name} ")
                 return
 
-            load_temp_var = self.get_temp_var()
-            space_temp_var = self.get_temp_var()
-            size = node.val.node_ident.size.llvm_gen(self)
+            index = self.increment_var_index(node.var.name.name)
+            var = f"%{node.var.name}.{index}"
+            size = node.var.node_ident.size.llvm_gen(self)
             assignment_type = LLVM_TYPE_NAMES[node.node_type.base_type]
+            value = node.val.llvm_gen(self)
 
-            self.add(f"{load_temp_var} = load {self_type}*, {self_type}** %{node.val.name}")
-            self.add(f"{space_temp_var} = alloca {self_type}, i32 {size}")
-
+            self.add(f"{var} = alloca {self_type}, i32 {size}")
             self.add(f"call void @llvm.memcpy.p0{assignment_type}.p0{assignment_type}.i32("
-                     f"{assignment_type}* {space_temp_var}, {assignment_type}* {load_temp_var},"
+                     f"{assignment_type}* {var}, {assignment_type}* {value},"
                      f" i32 {size}, i1 0)")
-
-            self.add(f"store {self_type}* {space_temp_var}, {self_type}** %{node.var.name}")
             return
 
         if isinstance(node.var, ArrayElemNode):
@@ -286,17 +288,11 @@ class LLVMCodeGenerator(CodeGenerator):
         if len(node.param_list.children) > 0:
             for arg in node.param_list.children:
                 arg_type = LLVM_TYPE_NAMES[arg.type_var.node_type.base_type]
-                if isinstance(arg, ParamNode):
-                    self.add(f"%{arg.name} = alloca {arg_type}")
-                    self.add(f"store {arg_type} %c{arg.name}, {arg_type}* %{arg.name}")
-                elif isinstance(arg, ArrayDeclNode):
-                    index = self.increment_var_index(arg.name.name)
-                    self.add(f"%{arg.name.name} = alloca {arg_type}*")
-                    self.add(f"%{arg.name.name}.{index} = alloca {arg_type}, i32 {arg.value.llvm_gen(self)}")
-                    self.add(f"call void @llvm.memcpy.p0{arg_type}.p0{arg_type}.i32("
-                             f"{arg_type}* %{arg.name.name}.{index}, {arg_type}* %c{arg.name.name}, "
-                             f"i32 {arg.value.llvm_gen(self)}, i1 0)")
-                    self.add(f"store {arg_type}* %{arg.name.name}.{index}, {arg_type}** %{arg.name.name}")
+                self.add(f"%{arg.name} = alloca {arg_type}")
+                if not arg.is_arr:
+                    self.add(f"store {arg_type} %p{arg.name}, {arg_type}* %{arg.name}")
+                else:
+                    self.add(f"store {arg_type}* %p{arg.name}, {arg_type}* %{arg.name}")
 
         node.list.llvm_gen(self)
 
@@ -313,8 +309,8 @@ class LLVMCodeGenerator(CodeGenerator):
 
     @visitor.when(ParamNode)
     def llvm_gen(self, node: ParamNode):
-        type = LLVM_TYPE_NAMES[node.type_var.node_type.base_type]
-        return f"{type} %c{node.name.name}"
+        type = LLVM_TYPE_NAMES[node.type_var.node_type.base_type] + ("*" if node.is_arr else "")
+        return f"{type} %p{node.name.name}"
 
     @visitor.when(CallNode)
     def llvm_gen(self, node: CallNode):
@@ -330,8 +326,14 @@ class LLVMCodeGenerator(CodeGenerator):
         for param in node.params:
             param_type = LLVM_TYPE_NAMES[param.node_type.base_type]
             if param.node_type.is_arr:
-                var_name = f"%{param.name}.{self.increment_var_index(param.name)}"
-                self.add(f'{var_name} = load {param_type}*, {param_type}** %{param.name}')
+                if isinstance(param, LiteralNode):  # string
+                    value = param.llvm_gen(self)
+                    var_name = self.get_temp_var()
+                else:
+                    index = self.increment_var_index(param.name)
+                    var_name = f"%{param.name}.{index}"
+                    value = f"%{param.name}"
+                self.add(f'{var_name} = getelementptr inbounds {param_type}, {param_type}* {value}, {param_type} 0')
                 args.append(f'{param_type}* {var_name}')
             else:
                 args.append(f'{param_type} {param.llvm_gen(self)}')
