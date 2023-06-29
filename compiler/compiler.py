@@ -32,6 +32,7 @@ def compile(src, print_trees):
         gen = LLVMCodeGenerator()
         gen.start()
         gen.llvm_gen(prog)
+        gen.stop()
         print(str(gen))
 
     except SemanticException as e:

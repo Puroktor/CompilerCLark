@@ -306,4 +306,5 @@ BUILT_IN_FUNCTIONS = '''
     int read_int(){}
     double read_double(){}
     char read_char(){}
+    void _main() {}
 '''

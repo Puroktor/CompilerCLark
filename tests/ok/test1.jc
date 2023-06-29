@@ -1,5 +1,11 @@
+int get_str_size() {
+    return 5;
+}
+
+int size = get_str_size();
+
 void print_hello(int n) {
-    char arr[5];
+    char arr[size];
     arr[0] = 'H';
     arr[1] = 'e';
     arr[2] = 'l';
@@ -7,7 +13,7 @@ void print_hello(int n) {
     arr[4] = 'o';
 
     for (int i = 0; i < n; i = i + 1) {
-        for (int j = 0; j < 5; j = j + 1) {
+        for (int j = 0; j < size; j = j + 1) {
             print_char(arr[j]);
         }
          print_char('\n');

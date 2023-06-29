@@ -4,11 +4,17 @@ from lark_ast_nodes import ArrayElemNode, ArrayDeclNode, AssignNode, CallNode, I
     IfNode, ForNode, WhileNode, StmtListNode, ReturnNode, ParamNode, LiteralNode, VarsDeclNode, BinOpNode, \
     ParamsListNode, TypeConvertNode
 from lark_base import BaseType
+from semantic_base import ScopeType
 
 
 class LLVMCodeGenerator(CodeGenerator):
 
+    def __init__(self):
+        super().__init__()
+        self.global_generator = None
+
     def start(self):
+        self.global_generator = LLVMCodeGenerator()
         for function in BUILT_IN_FUNCTIONS:
             self.add(function)
 
@@ -16,6 +22,14 @@ class LLVMCodeGenerator(CodeGenerator):
         self.add("declare void @llvm.memcpy.p0i1.p0i1.i32(i1*, i1*, i32, i1)")
         self.add("declare void @llvm.memcpy.p0i8.p0i8.i32(i8*, i8*, i32, i1)")
         self.add("declare void @llvm.memcpy.p0double.p0double.i32(double*, double*, i32, i1)\n")
+
+    def stop(self):
+        self.add("define i32 @main () {")
+        for line in self.global_generator.code_lines:
+            self.code_lines.append(line)
+        self.add("%call._main.0 = call i32 @_main()")
+        self.add("ret i32 %call._main.0")
+        self.add("}")
 
     @visitor.on('AstNode')
     def llvm_gen(self, AstNode):
@@ -34,7 +48,11 @@ class LLVMCodeGenerator(CodeGenerator):
     def llvm_gen(self, node: IdentNode):
         index = self.increment_var_index(node.name)
         type = LLVM_TYPE_NAMES[node.node_type.base_type]
-        self.add(f"%{node.name}.{index} = load {type}, {type}* %{node.name}")
+        if node.node_ident.scope == ScopeType.GLOBAL:
+            name = f'@{node.name}'
+        else:
+            name = f'%{node.name}'
+        self.add(f"%{node.name}.{index} = load {type}, {type}* {name}")
         return f"%{node.name}.{index}"
 
     @visitor.when(VarsDeclNode)
@@ -44,8 +62,8 @@ class LLVMCodeGenerator(CodeGenerator):
         for var in node.vars_list:
             if node.scope.is_global:
                 if isinstance(var, AssignNode):
-                    self.add(f"@{var.var.name} = global {type}")
-                    var.llvm_gen(self)
+                    self.add(f"@{var.var.name} = global {type} {val}")
+                    var.llvm_gen(self.global_generator)
                 if isinstance(var, IdentNode):
                     self.add(f"@{var.name} = global {type} {val}")
             else:
@@ -88,7 +106,10 @@ class LLVMCodeGenerator(CodeGenerator):
             target_ptr = f"{self.llvm_load_array_ptr(node.var)}"
             var_name = node.var.name.name
         else:
-            target_ptr = f"%{node.var.name}"
+            if node.var.node_ident.scope == ScopeType.GLOBAL:
+                target_ptr = f'@{node.var.name}'
+            else:
+                target_ptr = f'%{node.var.name}'
             var_name = node.var.name
 
         value_type = LLVM_TYPE_NAMES[node.node_type.base_type]
@@ -259,7 +280,8 @@ class LLVMCodeGenerator(CodeGenerator):
         if node.type.is_arr:
             func_type += "*"
 
-        self.add(f"define {func_type} @{node.name.name} ({node.param_list.llvm_gen(self)}) "'{\n')
+        func_name = node.name.name if node.name.name != 'main' else '_main'
+        self.add(f"\ndefine {func_type} @{func_name} ({node.param_list.llvm_gen(self)}) "'{')
 
         if len(node.param_list.children) > 0:
             for arg in node.param_list.children:

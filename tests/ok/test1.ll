@@ -9,11 +9,18 @@ declare void @llvm.memcpy.p0i1.p0i1.i32(i1*, i1*, i32, i1)
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8*, i8*, i32, i1)
 declare void @llvm.memcpy.p0double.p0double.i32(double*, double*, i32, i1)
 
-define void @print_hello (i32 %cn) {
 
+define i32 @get_str_size () {
+ret i32 5
+}
+
+@size = global i32 0
+
+define void @print_hello (i32 %cn) {
 %n = alloca i32
 store i32 %cn, i32* %n
-%arr.0 = alloca i8, i32 5
+%size.0 = load i32, i32* @size
+%arr.0 = alloca i8, i32 %size.0
 %arr = alloca i8*
 store i8* %arr.0, i8** %arr
 %temp.0 = load i8*, i8** %arr
@@ -61,7 +68,8 @@ br label %for.cond.1
 
 for.cond.1:
 %j.1 = load i32, i32* %j
-%temp.6 = icmp slt i32 %j.1, 5
+%size.1 = load i32, i32* @size
+%temp.6 = icmp slt i32 %j.1, %size.1
 br i1 %temp.6, label %for.body.1, label %for.exit.1
 
 for.body.1:
@@ -92,8 +100,8 @@ for.exit.0:
 ret void
 }
 
-define i32 @main () {
 
+define i32 @_main () {
 %n = alloca i32
 %call.read_int.0 = call i32 @read_int()
 store i32 %call.read_int.0, i32* %n
@@ -102,4 +110,10 @@ call void @print_hello(i32 %n.1)
 ret i32 0
 }
 
+define i32 @main () {
+%call.get_str_size.0 = call i32 @get_str_size()
+store i32 %call.get_str_size.0, i32* @size
+%call._main.0 = call i32 @_main()
+ret i32 %call._main.0
+}
 
