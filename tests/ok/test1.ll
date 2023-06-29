@@ -89,16 +89,17 @@ store i32 %temp.10, i32* %i
 br label %for.cond.0
 
 for.exit.0:
-%call.read_char.0 = call i8 @read_char()
 ret void
 }
-define void @main () {
+
+define i32 @main () {
 
 %n = alloca i32
 %call.read_int.0 = call i32 @read_int()
 store i32 %call.read_int.0, i32* %n
 %n.1 = load i32, i32* %n
 call void @print_hello(i32 %n.1)
-ret void
+ret i32 0
 }
+
 

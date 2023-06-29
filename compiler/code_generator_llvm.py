@@ -1,7 +1,8 @@
 import visitor
 from code_generator_base import *
 from lark_ast_nodes import ArrayElemNode, ArrayDeclNode, AssignNode, CallNode, IdentNode, FunctionNode, ExprNode, \
-    IfNode, ForNode, WhileNode, StmtListNode, ReturnNode, ParamNode, LiteralNode, VarsDeclNode
+    IfNode, ForNode, WhileNode, StmtListNode, ReturnNode, ParamNode, LiteralNode, VarsDeclNode, BinOpNode, \
+    ParamsListNode, TypeConvertNode
 from lark_base import BaseType
 
 
@@ -22,6 +23,19 @@ class LLVMCodeGenerator(CodeGenerator):
         Нужен для работы модуля visitor (инициализации диспетчера)
         """
         pass
+
+    @visitor.when(LiteralNode)
+    def llvm_gen(self, node: LiteralNode):
+        if node.node_type.base_type == BaseType.CHAR:
+            return str(ord(node.value))
+        return node.value
+
+    @visitor.when(IdentNode)
+    def llvm_gen(self, node: IdentNode):
+        index = self.increment_var_index(node.name)
+        type = LLVM_TYPE_NAMES[node.node_type.base_type]
+        self.add(f"%{node.name}.{index} = load {type}, {type}* %{node.name}")
+        return f"%{node.name}.{index}"
 
     @visitor.when(VarsDeclNode)
     def llvm_gen(self, node: VarsDeclNode):
@@ -50,14 +64,14 @@ class LLVMCodeGenerator(CodeGenerator):
             self_type = LLVM_TYPE_NAMES[node.node_type.base_type]
 
             if node.val.node_type.is_arr and isinstance(node.val, CallNode):
-                result = node.val.llvm_load(self)
+                result = node.val.llvm_gen(self)
                 var_type = LLVM_TYPE_NAMES[node.var.node_type.base_type]
                 self.add(f"store {var_type}* {result}, {var_type}** %{node.var.name} ")
                 return
 
             load_temp_var = self.get_temp_var()
             space_temp_var = self.get_temp_var()
-            size = node.val.node_ident.size.llvm_load(self)
+            size = node.val.node_ident.size.llvm_gen(self)
             assignment_type = LLVM_TYPE_NAMES[node.node_type.base_type]
 
             self.add(f"{load_temp_var} = load {self_type}*, {self_type}** %{node.val.name}")
@@ -71,7 +85,7 @@ class LLVMCodeGenerator(CodeGenerator):
             return
 
         if isinstance(node.var, ArrayElemNode):
-            target_ptr = f"{node.var.llvm_load_ptr(self)}"
+            target_ptr = f"{self.llvm_load_array_ptr(node.var)}"
             var_name = node.var.name.name
         else:
             target_ptr = f"%{node.var.name}"
@@ -80,19 +94,19 @@ class LLVMCodeGenerator(CodeGenerator):
         value_type = LLVM_TYPE_NAMES[node.node_type.base_type]
         if isinstance(node.val, LiteralNode):
             value_index = self.increment_var_index(var_name)
-            value = node.val.llvm_load(self)
+            value = node.val.llvm_gen(self)
             default = LLVM_TYPE_DEFAULT_VALUES[node.node_type.base_type]
             self.add(f"%{var_name}.{value_index} = {add} {value_type} {default}, {value}")
             self.add(f"store {value_type} %{var_name}.{value_index}, {value_type}* {target_ptr}")
 
         elif isinstance(node.val, ExprNode):
-            res = node.val.llvm_load(self)
+            res = node.val.llvm_gen(self)
             self.add(f"store {value_type} {res}, {value_type}* {target_ptr}")
 
     @visitor.when(ArrayDeclNode)
     def llvm_gen(self, node: ArrayDeclNode):
         index = self.increment_var_index(node.name.name)
-        count_arg = node.value.llvm_load(self)
+        count_arg = node.value.llvm_gen(self)
         node_type = LLVM_TYPE_NAMES[node.node_type.base_type]
         value_type = LLVM_TYPE_NAMES[node.value.node_type.base_type]
 
@@ -100,10 +114,56 @@ class LLVMCodeGenerator(CodeGenerator):
         self.add(f"%{node.name.name} = alloca {node_type}*")
         self.add(f"store {node_type}* %{node.name.name}.{index}, {node_type}** %{node.name.name}")
 
+    @visitor.when(ArrayElemNode)
+    def llvm_gen(self, node: ArrayElemNode):
+        result = f"%{node.name.name}.{self.increment_var_index(node.name.name)}"
+        self_type = LLVM_TYPE_NAMES[node.node_type.base_type]
+
+        temp_var = self.get_temp_var()
+        self.add(f"{temp_var} = load {self_type}*, {self_type}** %{node.name.name}")
+
+        value_type = LLVM_TYPE_NAMES[node.value.node_type.base_type]
+        ptr = self.get_temp_var()
+        self.add(f"{ptr} = getelementptr inbounds {self_type}, {self_type}* {temp_var}, "
+                 f"{value_type} {node.value.llvm_gen(self)}")
+        self.add(f"{result} = load {self_type}, {self_type}* {ptr}")
+        return result
+
+    @visitor.when(BinOpNode)
+    def llvm_gen(self, node: BinOpNode):
+        arg1 = node.arg1.llvm_gen(self)
+        arg2 = node.arg2.llvm_gen(self)
+
+        ret = self.get_temp_var()
+        type = LLVM_TYPE_NAMES[node.arg1.node_type.base_type]
+        bin_op = LLVM_FLOAT_BIN_OPS[node.op] if node.arg1.node_type.base_type == BaseType.DOUBLE else LLVM_INT_BIN_OPS[
+            node.op]
+        self.add(f"{ret} = {bin_op} {type} {arg1}, {arg2}")
+        return ret
+
+    @visitor.when(TypeConvertNode)
+    def llvm_gen(self, node: TypeConvertNode):
+        var = node.expr.llvm_gen(self)
+        type_from = node.expr.node_type.base_type
+        llvm_type_from = LLVM_TYPE_NAMES[type_from]
+        type_to = node.node_type.base_type
+        llvm_type_to = LLVM_TYPE_NAMES[type_to]
+        conv_op = get_llvm_conv_operation(type_from, type_to)
+        temp_var = self.get_temp_var()
+
+        if type_to == BaseType.BOOLEAN and (type_from == BaseType.CHAR or type_from == BaseType.INT):
+            self.add(f"{temp_var} = icmp ne {llvm_type_from} 0, {var}")
+        elif type_to == BaseType.BOOLEAN and type_from == BaseType.DOUBLE:
+            self.add(f"{temp_var} = fcmp one {llvm_type_from} 0.0, {var}")
+        else:
+            self.add(f"{temp_var} = {conv_op} {llvm_type_from} {var} to {llvm_type_to}")
+
+        return temp_var
+
     @visitor.when(IfNode)
     def llvm_gen(self, node: IfNode):
         index = self.increment_var_index('if')
-        cond_res = node.cond.llvm_load(self)
+        cond_res = node.cond.llvm_gen(self)
         eq_label = f"IfTrue.{index}"
         neq_label = f"IfFalse.{index}"
         res_label = f"IfEnd.{index}"
@@ -137,7 +197,7 @@ class LLVMCodeGenerator(CodeGenerator):
         self.add(f"br label %{for_cond}")
 
         self.add(f"\n{for_cond}:")
-        condition = node.cond.llvm_load(self)
+        condition = node.cond.llvm_gen(self)
         self.add(f"br i1 {condition}, label %{for_body}, label %{for_exit}")
 
         self.add(f"\n{for_body}:")
@@ -160,7 +220,7 @@ class LLVMCodeGenerator(CodeGenerator):
         self.add(f"br label %{cond_label}\n")
         self.add(f"{cond_label}:")
 
-        condition = node.cond.llvm_load(self)
+        condition = node.cond.llvm_gen(self)
         self.add(f"br i1 {condition}, label %{body_label}, label %{exit_label}\n")
 
         self.add(f"{body_label}:")
@@ -182,7 +242,7 @@ class LLVMCodeGenerator(CodeGenerator):
             self.add(f"{temp_var} = load {var_type}*, {var_type}** %{node.expr.name}")
             self.add(f"ret {var_type}* {temp_var}")
         else:
-            res = node.expr.llvm_load(self) if node.expr is not None else LLVM_TYPE_NAMES[BaseType.VOID]
+            res = node.expr.llvm_gen(self) if node.expr is not None else LLVM_TYPE_NAMES[BaseType.VOID]
             if node.expr is None:
                 self.add(f"ret void")
             else:
@@ -199,7 +259,7 @@ class LLVMCodeGenerator(CodeGenerator):
         if node.type.is_arr:
             func_type += "*"
 
-        self.add(f"define {func_type} @{node.name.name} ({node.param_list.llvm_load(self)}) "'{\n')
+        self.add(f"define {func_type} @{node.name.name} ({node.param_list.llvm_gen(self)}) "'{\n')
 
         if len(node.param_list.children) > 0:
             for arg in node.param_list.children:
@@ -210,18 +270,62 @@ class LLVMCodeGenerator(CodeGenerator):
                 elif isinstance(arg, ArrayDeclNode):
                     index = self.increment_var_index(arg.name.name)
                     self.add(f"%{arg.name.name} = alloca {arg_type}*")
-                    self.add(f"%{arg.name.name}.{index} = alloca {arg_type}, i32 {arg.value.llvm_load(self)}")
+                    self.add(f"%{arg.name.name}.{index} = alloca {arg_type}, i32 {arg.value.llvm_gen(self)}")
                     self.add(f"call void @llvm.memcpy.p0{arg_type}.p0{arg_type}.i32("
                              f"{arg_type}* %{arg.name.name}.{index}, {arg_type}* %c{arg.name.name}, "
-                             f"i32 {arg.value.llvm_load(self)}, i1 0)")
+                             f"i32 {arg.value.llvm_gen(self)}, i1 0)")
                     self.add(f"store {arg_type}* %{arg.name.name}.{index}, {arg_type}** %{arg.name.name}")
 
         node.list.llvm_gen(self)
 
         if next((x for x in node.list.children if isinstance(x, ReturnNode)), None) is None:
             self.add("ret void")
-        self.add("}")
+        self.add("}\n")
+
+    @visitor.when(ParamsListNode)
+    def llvm_gen(self, node: ParamsListNode):
+        result = list()
+        for arg in node.params:
+            result.append(arg.llvm_gen(self))
+        return ', '.join(result)
+
+    @visitor.when(ParamNode)
+    def llvm_gen(self, node: ParamNode):
+        type = LLVM_TYPE_NAMES[node.type_var.node_type.base_type]
+        return f"{type} %c{node.name.name}"
 
     @visitor.when(CallNode)
     def llvm_gen(self, node: CallNode):
-        node.llvm_load(self)
+        result = f"%call.{node.func.name}.{self.increment_var_index(f'call.{node.func.name}')}"
+        call_type = LLVM_TYPE_NAMES[node.node_type.base_type]
+        if node.node_type.is_arr:
+            call_type += "*"
+        if node.node_type.base_type == BaseType.VOID:
+            res_str = f"call void @{node.func.name}("
+        else:
+            res_str = f"{result} = call {call_type} @{node.func.name}("
+        args = []
+        for param in node.params:
+            param_type = LLVM_TYPE_NAMES[param.node_type.base_type]
+            if param.node_type.is_arr:
+                var_name = f"%{param.name}.{self.increment_var_index(param.name)}"
+                self.add(f'{var_name} = load {param_type}*, {param_type}** %{param.name}')
+                args.append(f'{param_type}* {var_name}')
+            else:
+                args.append(f'{param_type} {param.llvm_gen(self)}')
+
+        res_str += f"{', '.join(args)})"
+        self.add(res_str)
+        return result
+
+    def llvm_load_array_ptr(self, node: ArrayElemNode) -> str:
+        result = f"%{node.name.name}.{self.increment_var_index(node.name.name)}"
+        self_type = LLVM_TYPE_NAMES[node.node_type.base_type]
+
+        temp_var = self.get_temp_var()
+        self.add(f"{temp_var} = load {self_type}*, {self_type}** %{node.name.name}")
+
+        value_type = LLVM_TYPE_NAMES[node.value.node_type.base_type]
+        self.add(f"{result} = getelementptr inbounds {self_type}, {self_type}* {temp_var}, "
+                 f"{value_type} {node.value.llvm_gen(self)}")
+        return result
